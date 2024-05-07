@@ -1,0 +1,1 @@
+// Section 2.3 -- Checking Response Integrity ZMap’s receiving components need to determine whether received packets are valid responses to probes originating from the scanner or are part of other background traffic.
