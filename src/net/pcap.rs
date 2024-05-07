@@ -3,9 +3,6 @@
 // https://www.tcpdump.org/manpages/pcap_setfilter.3pcap.html
 // https://man7.org/linux/man-pages/man3/pcap_loop.3pcap.html
 
-#![allow(non_camel_case_types)]
-#![allow(unused)]
-
 pub use libc::{c_char, c_int, c_uchar, c_uint, c_ushort, timeval};
 use log::info;
 

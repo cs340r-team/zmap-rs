@@ -1,3 +1,5 @@
+#![allow(unused, non_camel_case_types)]
+
 mod net;
 mod recv;
 
