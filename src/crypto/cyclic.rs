@@ -64,6 +64,7 @@ impl Cyclic {
         Ipv4Addr::from((self.current as u32).to_be())
     }
 
+    // TODO: support blocklist
     pub fn next_ip(&mut self) -> Ipv4Addr {
         loop {
             self.current = (self.current * self.generator) % PRIME;
