@@ -1,5 +1,6 @@
-#![allow(unused, non_camel_case_types)]
+#![allow(unused, non_camel_case_types, non_snake_case, non_upper_case_globals)]
 
+mod crypto;
 mod net;
 mod recv;
 
