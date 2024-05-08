@@ -15,7 +15,7 @@ impl ResponseValidator {
         }
     }
 
-    pub fn gen(self, src: &Ipv4Addr, dst: &Ipv4Addr) -> [u8; 16] {
+    pub fn gen(&self, src: &Ipv4Addr, dst: &Ipv4Addr) -> [u8; 16] {
         let mut input = [0u8; 16];
         input[0..4].copy_from_slice(&src.octets());
         input[4..8].copy_from_slice(&dst.octets());
