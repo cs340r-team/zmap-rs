@@ -1,5 +1,6 @@
-use super::AesCtx;
 use rand::prelude::*;
+
+use super::AesCtx;
 
 pub struct AesRand {
     ctx: AesCtx,

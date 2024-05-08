@@ -1,3 +1,3 @@
-pub mod validate;
+mod validate;
 
 pub use validate::ResponseValidator;

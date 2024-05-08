@@ -1,5 +1,6 @@
-use crate::net::pcap::*;
 use log::info;
+
+use crate::net::pcap::*;
 
 // This is an example callback function that will be called for each packet
 // We will need to create a function similar to this one
