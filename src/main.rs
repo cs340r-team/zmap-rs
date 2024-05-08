@@ -1,6 +1,7 @@
-#![allow(unused, non_camel_case_types, non_snake_case, non_upper_case_globals)]
+#![allow(unused, non_camel_case_types, non_snake_case, non_upper_case_globals, special_module_name)]
 
 mod crypto;
+mod lib;
 mod net;
 mod recv;
 

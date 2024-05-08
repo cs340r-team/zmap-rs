@@ -1,4 +1,4 @@
-use super::rijndael_alg_fast::AesCtx;
+use super::AesCtx;
 use rand::prelude::*;
 
 pub struct AesRand {
@@ -8,11 +8,10 @@ pub struct AesRand {
 
 impl AesRand {
     // TODO: support seed?
-    pub fn new() -> AesRand {
+    pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         let key: [u8; 16] = rng.gen();
-        println!("key: {:?}", key);
-        AesRand {
+        Self {
             ctx: AesCtx::new(&key),
             counter: 0,
         }
