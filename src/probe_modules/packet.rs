@@ -42,4 +42,3 @@ pub struct IpHdr(etherparse::Ipv4Header);
 pub struct IcmpHdr(etherparse::Icmpv4Header);
 pub struct TcpHdr(etherparse::TcpHeader);
 pub struct UdpHdr(etherparse::UdpHeader);
-
