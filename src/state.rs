@@ -1,0 +1,53 @@
+pub struct Config {
+    pub log_level: log::LevelFilter,
+    pub source_port_first: u16,
+    pub source_port_last: u16,
+    pub output_filename: String,
+    pub blacklist_filename: String,
+    pub whitelist_filename: String,
+    pub target_port: u16,
+    pub max_targets: u32,
+    pub max_runtime: u32,
+    pub max_results: u32,
+    pub iface: String,
+    pub rate: i32,
+    pub bandwidth: u64,
+    pub cooldown_secs: i32,
+    pub senders: i32,
+    pub packet_streams: u32,
+    pub use_seed: bool,
+    pub seed: u32,
+    pub gw_mac: String,
+    pub dryrun: bool,
+    pub quiet: bool,
+    pub summary: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Config {
+            log_level: log::LevelFilter::Debug,
+            source_port_first: 32768,
+            source_port_last: 61000,
+            output_filename: Default::default(),
+            blacklist_filename: Default::default(),
+            whitelist_filename: Default::default(),
+            target_port: 0,
+            max_targets: u32::MAX,
+            max_runtime: 0,
+            max_results: 0,
+            iface: Default::default(),
+            rate: 0,
+            bandwidth: 0,
+            cooldown_secs: 0,
+            senders: 1,
+            packet_streams: 1,
+            use_seed: false,
+            seed: 0,
+            gw_mac: Default::default(),
+            dryrun: false,
+            quiet: false,
+            summary: false,
+        }
+    }
+}

@@ -1,194 +1,143 @@
-// add packet.rs
 use std::net::Ipv4Addr;
 
-pub fn synscan_init_perthread(
-    buf: &mut [u8],
-    src: &MacAddr,
-    gw: &MacAddr,
-    src_ip: Ipv4Addr,
-    dest_ip: Ipv4Addr,
-    dest_port: u16,
-) -> Result() {
-    buf.fill(0);
+use etherparse::{
+    Ethernet2Header, IpFragOffset, IpHeaders, IpNumber, Ipv4Dscp, Ipv4Header, PacketBuilder,
+    PacketBuilderStep, TcpHeader,
+};
+use libc::MAXTTL;
 
-    // create Ethernet header
-    let eth_header = Ethernet2Header {
-        destination: gw.octets(),
-        source: src.octets(),
-        ether_type: etherparse::EtherTypes::Ipv4 as u16,
-    };
+use crate::{net::MacAddress, probe_modules::packet::make_tcp_header, state::Config};
 
-    // create IP header
-    let ip_header = Ipv4Header::new(
-        Ipv4Header::MIN_LEN + TcpHeader::MIN_LEN,
-        64,
-        etherparse::IpTrafficClass::Tcp,
-        src_ip.octets(),
-        dest_ip.octets(),
-    );
+use super::packet::{make_eth_header, make_ip_header};
 
-    // create TCP header
-    let tcp_header = TcpHeader::new(
-        0, // Source port will be filled later
-        dest_port, 0, // Sequence number
-        0, // Window size
-    );
+const NUM_PORTS: u32 = 1;
 
-    // build the packet
-
-    let pkt = PacketBuilder::ethernet2(eth_header.source, eth_header.destination)
-        .ipv4(ip_header.source, ip_header.destination, ip_header.ttl)
-        .tcp(
-            tcp_header.source_port,
-            tcp_header.destination_port,
-            tcp_header.sequence_number,
-            tcp_header.window_size,
-        );
-    // write the packet to the buffer
-    pkt.write(buf, &[])?;
-    //pkt.write(&mut buf[..pkt.size()])?;
-
-    Ok(())
-}
-
-pub fn synscan_make_packet(
-    buf: &mut [u8],
-    src_ip: Ipv4Addr,
-    dst_ip: Ipv4Addr,
-    validation: &[u32; 3],
-    probe_num: usize,
-    src_mac: &MacAddr,
-    dst_mac: &MacAddr,
-) -> Result() {
-    buf.fill(0);
-
-    // Calculate source port
-    let num_ports = 65535;
-    let src_port = 49152 + ((validation[1] + probe_num as u32) % num_ports) as u16;
-
-    let tcp_seq = validation[0];
-
-    let eth_header = Ethernet2Header {
-        destination: dst_mac.octets(),
-        source: src_mac.octets(),
-        ether_type: etherparse::EtherTypes::Ipv4 as u16,
-    };
-
-    let ip_header = Ipv4Header::new(
-        Ipv4Header::MIN_LEN + TcpHeader::MIN_LEN,
-        64,
-        etherparse::IpTrafficClass::Tcp,
-        src_ip.octets(),
-        dst_ip.octets(),
-    );
-
-    let mut tcp_header = TcpHeader::new(
-        src_port, 80, tcp_seq, 0, // Window size
-    );
-    tcp_header.checksum = 0;
-
-    //tcp_header.checksum = TODO
-    //ip_header.checksum = TODO
-}
-
-// //add packet.rs
-// use crate::packet::{
-//     make_eth_header, make_ip_header, make_tcp_header, EthHdr, IpHdr, MacAddr, TcpHdr,
-// };
-
-// struct ModuleTcpSynscan {
-//     name: String,
-//     packet_length: u32,
-//     pcap_filter: String,
-//     pcap_snaplen: u32,
-//     port_args: u32,
-//     thread_initialize: fn(),
-//     make_packet: fn(),
-//     print_packet: fn(),
-//     classify_packet: fn(),
-//     validate_packet: fn(),
-//     close: fn(),
-//     responses: Vec<String>,
+// pub fn synscan_init_perthread(
+//     source_mac: &MacAddress,
+//     gateway_mac: &MacAddress,
+// ) -> Result<Vec<u8>, std::io::Error> {
+//     return Ok(buf);
 // }
 
-// impl ModuleTcpSynscan {
-//     fn new() -> Self {
-//         Self {
-//             name: "tcp_synscan".to_string(),
-//             packet_length: 54,
-//             pcap_filter: "tcp && tcp[13] & 4 != 0 || tcp[13] == 18".to_string(),
-//             pcap_snaplen: 96,
-//             port_args: 1,
-//             thread_initialize: synscan_init_perthread,
-//             make_packet: synscan_make_packet,
-//             print_packet: synscan_print_packet,
-//             classify_packet: synscan_classify_packet,
-//             validate_packet: synscan_validate_packet,
-//             close: None,
-//             responses: vec![],
-//         }
-//     }
-// }
-
-// // int synscan_make_packet(void *buf, ipaddr_n_t src_ip, ipaddr_n_t dst_ip,
-// //     uint32_t *validation, int probe_num)
-// // {
-// // struct ethhdr *eth_header = (struct ethhdr *)buf;
-// // struct iphdr *ip_header = (struct iphdr*)(&eth_header[1]);
-// // struct tcphdr *tcp_header = (struct tcphdr*)(&ip_header[1]);
-// // uint16_t src_port = zconf.source_port_first
-// //                 + ((validation[1] + probe_num) % num_ports);
-// // uint32_t tcp_seq = validation[0];
-
-// // ip_header->saddr = src_ip;
-// // ip_header->daddr = dst_ip;
-
-// // tcp_header->source = htons(src_port);
-// // tcp_header->seq = tcp_seq;
-// // tcp_header->check = 0;
-// // tcp_header->check = tcp_checksum(sizeof(struct tcphdr),
-// //         ip_header->saddr, ip_header->daddr, tcp_header);
-
-// // ip_header->check = 0;
-// // ip_header->check = ip_checksum((unsigned short *) ip_header);
-
-// // return EXIT_SUCCESS;
-// // }
-
-// fn synscan_make_packet(
-//     buf: &mut [u8],
-//     src_ip: u32,
-//     dst_ip: u32,
-//     validation: &mut [u32],
+// pub fn synscan_make_packet(
+//     source_mac: &MacAddress,
+//     gateway_mac: &MacAddress,
+//     source_ip: Ipv4Addr,
+//     destination_ip: Ipv4Addr,
+//     validation: &[u32],
 //     probe_num: i32,
-// ) -> i32 {
-//     let eth_header = unsafe { &mut *(buf.as_mut_ptr() as *mut EthHdr) };
-//     let ip_header =
-//         unsafe { &mut *(buf.as_mut_ptr().add(std::mem::size_of::<EthHdr>()) as *mut IpHdr) };
-//     let tcp_header = unsafe {
-//         &mut *(buf
-//             .as_mut_ptr()
-//             .add(std::mem::size_of::<EthHdr>() + std::mem::size_of::<IpHdr>())
-//             as *mut TcpHdr)
-//     };
-//     let src_port = zconf.source_port_first + ((validation[1] + probe_num) % num_ports);
+//     config: &Config,
+// ) -> Result<Vec<u8>, std::io::Error> {
+//     let mut buf =
+//         Vec::<u8>::with_capacity(Ethernet2Header::LEN + Ipv4Header::MAX_LEN + TcpHeader::MAX_LEN);
+
+//     let ethernet_header = make_eth_header(source_mac, gateway_mac)
+//         .write(&mut buf)
+//         .expect("Could not write Ethernet header to buffer");
+
+//     let mut ip_header = Ipv4Header::new(
+//         0,
+//         MAXTTL,
+//         IpNumber::TCP,
+//         source_ip.octets(),
+//         destination_ip.octets(),
+//     )
+//     .unwrap();
+
+//     ip_header
+//         .write(&mut buf)
+//         .expect("Could not write IPv4 header to buffer");
+
+//     // Calculate source port
+//     let src_port =
+//         config.source_port_first + ((validation[1] + probe_num as u32) % NUM_PORTS) as u16;
 //     let tcp_seq = validation[0];
 
-//     ip_header.saddr = src_ip;
-//     ip_header.daddr = dst_ip;
+//     let mut tcp_header = make_tcp_header(config.target_port);
+//     tcp_header.source_port = src_port;
+//     tcp_header.sequence_number = tcp_seq;
+//     tcp_header.checksum = tcp_header.calc_checksum_ipv4(&ip_header, &[]).unwrap();
 
-//     tcp_header.source = htons(src_port);
-//     tcp_header.seq = tcp_seq;
-//     tcp_header.check = 0;
-//     tcp_header.check = tcp_checksum(
-//         std::mem::size_of::<TcpHdr>(),
-//         ip_header.saddr,
-//         ip_header.daddr,
-//         tcp_header,
-//     );
+//     tcp_header
+//         .write(&mut buf)
+//         .expect("Could not write TCP header to buffer");
 
-//     ip_header.check = 0;
-//     ip_header.check = ip_checksum(ip_header);
-
-//     return EXIT_SUCCESS;
+//     Ok(buf)
 // }
+
+// pub fn synscan_init_perthread2(source_mac: &MacAddress, gateway_mac: &MacAddress) -> () {}
+
+pub fn synscan_make_packet(
+    source_mac: &MacAddress,
+    gateway_mac: &MacAddress,
+    source_ip: Ipv4Addr,
+    destination_ip: Ipv4Addr,
+    validation: &[u32],
+    probe_num: i32,
+    config: &Config,
+) -> Vec<u8> {
+    // Calculate source port
+    let src_port =
+        config.source_port_first + ((validation[1] + probe_num as u32) % NUM_PORTS) as u16;
+    let tcp_seq = validation[0];
+
+    let mut ip_header = make_ip_header(IpNumber::TCP);
+    ip_header.source = source_ip.octets();
+    ip_header.destination = destination_ip.octets();
+
+    let mut tcp_header = make_tcp_header(config.target_port);
+    tcp_header.source_port = src_port;
+    tcp_header.sequence_number = tcp_seq;
+
+    let builder = PacketBuilder::ethernet2(source_mac.octets(), gateway_mac.octets())
+        .ip(IpHeaders::Ipv4(ip_header, Default::default()))
+        .tcp_header(tcp_header);
+
+    let mut result = Vec::<u8>::with_capacity(builder.size(0));
+
+    // This will automatically set all length fields, checksums and identifiers (ethertype & protocol)
+    // before writing the packet out to "result"
+    builder.write(&mut result, &[]).unwrap();
+    result
+}
+
+pub fn synscan_classify_packet(tcp_header: &TcpHeader) -> bool {
+    !tcp_header.rst // Success is defined by a SYN-ACK, not a RST
+}
+
+pub fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
+    if (port > config.source_port_last || port < config.source_port_first) {
+        return false;
+    }
+
+    let to_validate = (port - config.source_port_first) as u32;
+    let min = validation[1] % NUM_PORTS;
+    let max = (validation[1] + config.packet_streams - 1) % NUM_PORTS;
+
+    return (((max - min) % NUM_PORTS) >= ((to_validate - min) % NUM_PORTS));
+}
+
+pub fn synscan_validate_packet(
+    ip_header: &Ipv4Header,
+    tcp_header: &TcpHeader,
+    validation: &[u32],
+    config: &Config,
+) -> bool {
+    if (ip_header.protocol != IpNumber::TCP) {
+        return false;
+    }
+
+    if (config.target_port != tcp_header.source_port) {
+        return false;
+    }
+
+    if (!check_dst_port(tcp_header.destination_port, validation, config)) {
+        return false;
+    }
+
+    if (tcp_header.acknowledgment_number != validation[0] + 1) {
+        return false;
+    }
+
+    return true;
+}

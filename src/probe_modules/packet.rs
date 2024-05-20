@@ -1,44 +1,43 @@
+use std::fmt;
 
-#[derive(Debug, Clone)]
-pub struct PacketError;
+use etherparse::{
+    EtherType, Ethernet2Header, IpFragOffset, IpNumber, Ipv4Dscp, Ipv4Header, TcpHeader,
+};
+use libc::{ETH_P_IP, MAXTTL};
+use rand::random;
 
-impl fmt::Display for PacketError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "[Packet Error]")
-    }
+use crate::net::MacAddress;
+
+pub fn make_eth_header(source: &MacAddress, destination: &MacAddress) -> Ethernet2Header {
+    let mut header: Ethernet2Header = Default::default();
+    header.source = source.octets();
+    header.destination = destination.octets();
+    header.ether_type = EtherType::IPV4;
+    return header;
 }
 
-pub struct MacAddr(eui48::MacAddr);
-
-pub impl MacAddr {
-    pub fn new(bytes: [u8; 6]) -> Self {
-         { MacAddr(eui48::MacAddr::new(bytes) }
-    }
-
-    pub fn from_bytes(bytes: &[u8; 6]) -> Self {
-        { MacAddr(eui48::MacAddr::from_bytes(bytes).unwrap()) }
-    }
-    
-    pub fn octets(&self) -> [u8; 6] {
-        self.0.to_array()
-    }
-
-    pub fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    pub fn parse_str(s: &str) -> Result<Self, PacketErr> {
-        match eui48::MacAddress::parse_str(s) {
-            Ok(addr) => Ok(Self(addr)),
-            Err(e) => Err("{} failed to parse MAC Address", e),
-        }
-    }
+pub fn make_ip_header(protocol: IpNumber) -> Ipv4Header {
+    let mut header: Ipv4Header = Default::default();
+    // IHL and version are taken care of for us
+    header.dscp = Ipv4Dscp::ZERO;
+    header.identification = 54321;
+    header.fragment_offset = IpFragOffset::ZERO;
+    header.time_to_live = MAXTTL;
+    header.protocol = protocol;
+    header.header_checksum = 0;
+    return header;
 }
 
-
-
-pub struct EthHdr(etherparse::Ethernet2Header);
-pub struct IpHdr(etherparse::Ipv4Header);
-pub struct IcmpHdr(etherparse::Icmpv4Header);
-pub struct TcpHdr(etherparse::TcpHeader);
-pub struct UdpHdr(etherparse::UdpHeader);
+pub fn make_tcp_header(port: u16) -> TcpHeader {
+    let mut header: TcpHeader = Default::default();
+    header.sequence_number = random();
+    header.acknowledgment_number = 0;
+    header.ece = false;
+    header.cwr = false;
+    header.syn = true;
+    header.window_size = u16::MAX;
+    header.checksum = 0;
+    header.urgent_pointer = 0;
+    header.destination_port = port;
+    return header;
+}

@@ -6,13 +6,18 @@
     special_module_name
 )]
 
+use std::net::Ipv4Addr;
+
 use net::{get_interface_index, socket::RawEthSocket, MacAddress};
+use probe_modules::module_tcp_synscan::synscan_make_packet;
+use state::Config;
 
 mod crypto;
 mod lib;
 mod net;
-// mod probe_modules;
+mod probe_modules;
 mod recv;
+mod state;
 
 fn main() {
     env_logger::builder()
@@ -27,16 +32,41 @@ fn main() {
     // });
     // recv_thread.join().unwrap();
 
+    let config = Config::default();
+
     let socket = RawEthSocket::new();
-    let gateway_mac = MacAddress::from_str("e2:f9:f6:db:38:4a").unwrap();
     let interface_index = get_interface_index("enp0s1").unwrap(); // Our default interface
 
-    let buf = [
-        0xef, 0xf9, 0xf6, 0xdb, 0x38, 0x4a, // destination
-        0xde, 0xf0, 0xf1, 0xaa, 0xb9, 0x4b, // source
-        0x22, 0xf0, // transport protocol
-        0xfc, 0x06, 0x00, 0x2c, 0x00, 0x00, // payload
-    ];
+    let source_mac = MacAddress::from_str("aa:41:72:51:54:42").unwrap();
+    let gateway_mac = MacAddress::from_str("e2:f9:f6:db:38:4a").unwrap();
 
-    socket.sendto(&buf, interface_index, &gateway_mac).unwrap()
+    let source_ip = Ipv4Addr::new(192, 168, 0, 2);
+
+    let packet = synscan_make_packet(
+        &source_mac,
+        &gateway_mac,
+        source_ip,
+        Ipv4Addr::new(192, 168, 0, 5),
+        &[1, 2, 3, 4],
+        1,
+        &config,
+    );
+
+    socket
+        .sendto(&packet, interface_index, &gateway_mac)
+        .expect("Could not send packet");
+
+    let packet = synscan_make_packet(
+        &source_mac,
+        &gateway_mac,
+        source_ip,
+        Ipv4Addr::new(192, 168, 0, 10),
+        &[91, 92, 93, 94],
+        2,
+        &config,
+    );
+
+    socket
+        .sendto(&packet, interface_index, &gateway_mac)
+        .expect("Could not send packet");
 }
