@@ -51,6 +51,46 @@ pub fn synscan_init_perthread(
     Ok(())
 }
 
+pub fn synscan_make_packet(
+    buf: &mut [u8],
+    src_ip: Ipv4Addr,
+    dst_ip: Ipv4Addr,
+    validation: &[u32; 3],
+    probe_num: usize,
+    src_mac: &MacAddr,
+    dst_mac: &MacAddr,
+) -> Result() {
+    buf.fill(0);
+
+    // Calculate source port
+    let num_ports = 65535;
+    let src_port = 49152 + ((validation[1] + probe_num as u32) % num_ports) as u16;
+
+    let tcp_seq = validation[0];
+
+    let eth_header = Ethernet2Header {
+        destination: dst_mac.octets(),
+        source: src_mac.octets(),
+        ether_type: etherparse::EtherTypes::Ipv4 as u16,
+    };
+
+    let ip_header = Ipv4Header::new(
+        Ipv4Header::MIN_LEN + TcpHeader::MIN_LEN,
+        64,
+        etherparse::IpTrafficClass::Tcp,
+        src_ip.octets(),
+        dst_ip.octets(),
+    );
+
+    let mut tcp_header = TcpHeader::new(
+        src_port, 80, tcp_seq, 0, // Window size
+    );
+    tcp_header.checksum = 0;
+
+    //tcp_header.checksum = TODO
+    //ip_header.checksum = TODO
+}
+
 // //add packet.rs
 // use crate::packet::{
 //     make_eth_header, make_ip_header, make_tcp_header, EthHdr, IpHdr, MacAddr, TcpHdr,
