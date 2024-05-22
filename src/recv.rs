@@ -24,12 +24,12 @@ pub extern "C" fn log_packet_handler(
 }
 
 pub fn run() {
-    let mut sniffer = PacketCapture::new("enp0s1");
-    sniffer.set_filter("tcp port 80");
+    let mut capture = PacketCapture::new("enp0s1");
+    capture.set_filter("tcp port 9000");
     loop {
-        if (sniffer.dispatch(log_packet_handler)) < 0 {
-            panic!("pcap_dispatch failed");
-        }
+        let packet = capture.next_packet();
+        println!("{packet:?}");
+
         // Check other conditions here, see src/recv.c in the original project
     }
 }
