@@ -26,5 +26,6 @@
 - crtitisimns of zmap (data race, big deal about caching - not really caching - only caching 12/~50 bytes)**
 - simulation
 - does zmap actaully need to be implemented in Rust? No. But it's cleaner. Makes it easier to reasion about types beacuse no casting. Forces you to do things a differnt way cant incremetally build up have to do it all at once. Interacting with low level networking stack is hard without the provided crates (took the longest to think about) 
+- RefCells
 
 ## Future Work 
