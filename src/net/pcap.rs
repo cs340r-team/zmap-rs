@@ -117,7 +117,7 @@ impl PacketCapture {
         Self { handle: p }
     }
 
-    pub fn set_filter(&mut self, filter: &str) {
+    pub fn with_filter(self, filter: &str) -> Self {
         // Compile the filter
         let mut bpf = bpf_program {
             bf_len: 0,
@@ -142,6 +142,8 @@ impl PacketCapture {
         if res < 0 {
             panic!("pcap_setfilter failed to install filter");
         }
+
+        self
     }
 
     pub fn dispatch(&self, callback: pcap_handler) -> i32 {
