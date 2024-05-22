@@ -4,15 +4,15 @@ Install the libpcap library, `libpcap-dev`.
 
 ## Tasks
 
+- [ ] zmap.c / init / main.rs 
 - [ ] send
 - [ ] blocklist
-- [ ] monitor thread
-- [ ] logging
-- [ ] output
+- [ ] monitor thread / logging
 - [ ] tests
 - [ ] actually run (reach back out to Phillip and Zakir)
-- [ ] probe moducles config struct - ref that outlivs the struct. packet maker.
+- [x] probe moducles config struct - ref that outlivs the struct. packet maker.
 - [x] recv
+- [x] output
 
 ## Optimization
 
