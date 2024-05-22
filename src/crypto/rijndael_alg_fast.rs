@@ -645,6 +645,7 @@ fn decrypt(mut rk: &[u32], ct: &[u8; 16], pt: &mut [u8; 16]) {
     putu32(&mut pt[12..16], s3);
 }
 
+#[derive(Clone, Debug)]
 pub struct AesCtx {
     enc_rk: [u32; 4 * (AES_ROUNDS + 1)],
     dec_rk: [u32; 4 * (AES_ROUNDS + 1)],

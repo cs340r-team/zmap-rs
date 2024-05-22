@@ -2,9 +2,10 @@
 // https://www.tcpdump.org/manpages/pcap_compile.3pcap.html
 // https://www.tcpdump.org/manpages/pcap_setfilter.3pcap.html
 // https://man7.org/linux/man-pages/man3/pcap_loop.3pcap.html
+use core::slice;
 
 pub use libc::{c_char, c_int, c_uchar, c_uint, c_ushort, timeval};
-use log::info;
+use log::debug;
 
 // Callback function to handle individual packets
 pub type pcap_handler =
@@ -39,6 +40,13 @@ struct bpf_insn {
     k: c_uint,
 }
 
+#[repr(C)]
+pub struct pcap_stat {
+    pub ps_recv: c_uint,
+    pub ps_drop: c_uint,
+    pub ps_ifdrop: c_uint,
+}
+
 extern "C" {
     // Open a device for capturing
     fn pcap_open_live(
@@ -69,7 +77,18 @@ extern "C" {
         user: *mut c_uchar,
     ) -> c_int;
 
+    // Reads the next packet and returns a success/failure indication
+    fn pcap_next_ex(
+        p: *mut pcap_t,
+        pkt_header: *mut *mut pcap_pkthdr,
+        pkt_data: *mut *const c_uchar,
+    ) -> c_int;
+
     fn pcap_close(p: *mut pcap_t);
+
+    // Get capture statistics
+    fn pcap_stats(p: *mut pcap_t, ps: *mut pcap_stat) -> i32;
+
 }
 
 pub struct PacketCapture {
@@ -101,11 +120,11 @@ impl PacketCapture {
             panic!("pcap_open_live failed: {}", err_str.to_str().unwrap());
         }
 
-        info!("Successfully opened device and installed filter for interface {interface}");
+        debug!("Successfully opened device for interface {interface}");
         Self { handle: p }
     }
 
-    pub fn set_filter(&mut self, filter: &str) {
+    pub fn with_filter(self, filter: &str) -> Self {
         // Compile the filter
         let mut bpf = bpf_program {
             bf_len: 0,
@@ -130,16 +149,82 @@ impl PacketCapture {
         if res < 0 {
             panic!("pcap_setfilter failed to install filter");
         }
+
+        self
     }
 
     pub fn dispatch(&self, callback: pcap_handler) -> i32 {
         // pcap_dispatch should be better than pcap_next_ex in terms of performance
         return unsafe { pcap_dispatch(self.handle, 0, callback, std::ptr::null_mut()) };
     }
+
+    pub fn next_packet(&self) -> Option<Packet> {
+        let mut pkt_header: *mut pcap_pkthdr = std::ptr::null_mut();
+        let mut pkt_data: *const c_uchar = std::ptr::null_mut();
+        let res = unsafe { pcap_next_ex(self.handle, &mut pkt_header, &mut pkt_data) };
+
+        // pcap_next_ex() returns 1 if the packet was read without problems
+        // 0 if packets are being read from a live capture and the packet buffer timeout expired
+        if res < 0 {
+            panic!("pcap_next_ex failed to read next packet");
+        } else if res == 0 {
+            return None;
+        }
+
+        let caplen = unsafe { (*pkt_header).caplen }.try_into().unwrap();
+        let header = unsafe { &*pkt_header };
+        let data = unsafe { slice::from_raw_parts(pkt_data, caplen) };
+
+        Some(Packet::new(header, data))
+    }
+
+    pub fn stats(&self) -> pcap_stat {
+        let mut stats = pcap_stat {
+            ps_recv: 0,
+            ps_drop: 0,
+            ps_ifdrop: 0,
+        };
+        let res = unsafe { pcap_stats(self.handle, &mut stats) };
+        if res != 0 {
+            panic!("pcap_stats failed to retrieve statistics");
+        }
+        stats
+    }
 }
 
 impl Drop for PacketCapture {
     fn drop(&mut self) {
         unsafe { pcap_close(self.handle) };
+    }
+}
+
+// For use with next_packet (zero-copy)
+//
+// pcap_next() reads the next packet (by calling pcap_dispatch() with a cnt of 1) and
+// returns a u_char pointer to the data in that packet. The packet data is not to be
+// freed by the caller, and is not guaranteed to be valid after the next call to
+// pcap_next_ex(), pcap_next(), pcap_loop(), or pcap_dispatch(); if the code needs
+// it to remain valid, it must make a copy of it. The pcap_pkthdr structure pointed
+// to by h is filled in with the appropriate values for the packet.
+pub struct Packet<'a> {
+    pub header: &'a pcap_pkthdr,
+    pub data: &'a [u8],
+}
+
+impl<'a> Packet<'a> {
+    pub fn new(header: &'a pcap_pkthdr, data: &'a [u8]) -> Self {
+        Self { header, data }
+    }
+}
+
+impl<'a> std::fmt::Debug for Packet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let caplen = unsafe { (*self.header).caplen };
+        let len = unsafe { (*self.header).len };
+        write!(
+            f,
+            "Packet {{ captured length: {}, actual length: {}, data: {:?} }}",
+            caplen, len, self.data
+        )
     }
 }
