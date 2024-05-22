@@ -6,11 +6,10 @@
     special_module_name
 )]
 
-use std::net::Ipv4Addr;
+use std::time::Instant;
 
-use net::{get_interface_index, socket::RawEthSocket, MacAddress};
-use probe_modules::module_tcp_synscan::synscan_make_packet;
-use state::Config;
+use recv::Receiver;
+use state::Context;
 
 mod crypto;
 mod lib;
@@ -25,14 +24,28 @@ fn main() {
         .format_target(false)
         .init();
 
-    // Spawn a thread to run the packet capture,
-    // more complex logic will be added around this
-    let recv_thread = std::thread::spawn(|| {
-        recv::run();
-    });
-    recv_thread.join().unwrap();
+    let context = Context::new();
 
-    // let config = Config::default();
+    // Spawn a thread to run the packet capture
+    let context_clone = context.clone();
+    let recv_thread = std::thread::spawn(move || {
+        let receiver = Receiver::new("enp0s1".into(), "tcp port 9000".into(), context_clone);
+        receiver.run();
+    });
+
+    // Dummy sender
+    let context_clone = context.clone();
+    let send_thread = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(1));
+        let mut zsend = context_clone.sender_stats.lock().unwrap();
+        zsend.complete = true;
+        zsend.finish = Instant::now();
+    });
+
+    recv_thread.join().unwrap();
+    send_thread.join().unwrap();
+
+    println!("recv_stats: {:?}", context.receiver_stats.lock().unwrap());
 
     // let socket = RawEthSocket::new();
     // let interface_index = get_interface_index("enp0s1").unwrap(); // Our default interface

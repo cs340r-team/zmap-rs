@@ -1,14 +1,10 @@
 use std::net::Ipv4Addr;
 
-use etherparse::{
-    Ethernet2Header, IpFragOffset, IpHeaders, IpNumber, Ipv4Dscp, Ipv4Header, PacketBuilder,
-    PacketBuilderStep, TcpHeader,
-};
-use libc::MAXTTL;
+use etherparse::{IpHeaders, IpNumber, Ipv4HeaderSlice, PacketBuilder, TcpHeaderSlice};
 
 use crate::{net::MacAddress, probe_modules::packet::make_tcp_header, state::Config};
 
-use super::packet::{make_eth_header, make_ip_header};
+use super::packet::make_ip_header;
 
 const NUM_PORTS: u32 = 1;
 
@@ -101,12 +97,12 @@ pub fn synscan_make_packet(
     result
 }
 
-pub fn synscan_classify_packet(tcp_header: &TcpHeader) -> bool {
-    !tcp_header.rst // Success is defined by a SYN-ACK, not a RST
+pub fn synscan_classify_packet(tcp_header: &TcpHeaderSlice) -> bool {
+    !tcp_header.rst() // Success is defined by a SYN-ACK, not a RST
 }
 
 pub fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
-    if (port > config.source_port_last || port < config.source_port_first) {
+    if port > config.source_port_last || port < config.source_port_first {
         return false;
     }
 
@@ -114,28 +110,28 @@ pub fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
     let min = validation[1] % NUM_PORTS;
     let max = (validation[1] + config.packet_streams - 1) % NUM_PORTS;
 
-    return (((max - min) % NUM_PORTS) >= ((to_validate - min) % NUM_PORTS));
+    return ((max - min) % NUM_PORTS) >= ((to_validate - min) % NUM_PORTS);
 }
 
 pub fn synscan_validate_packet(
-    ip_header: &Ipv4Header,
-    tcp_header: &TcpHeader,
+    ip_header: &Ipv4HeaderSlice, // Changed from Ipv4Header for zero-copy
+    tcp_header: &TcpHeaderSlice,
     validation: &[u32],
     config: &Config,
 ) -> bool {
-    if (ip_header.protocol != IpNumber::TCP) {
+    if ip_header.protocol() != IpNumber::TCP {
         return false;
     }
 
-    if (config.target_port != tcp_header.source_port) {
+    if config.target_port != tcp_header.source_port() {
         return false;
     }
 
-    if (!check_dst_port(tcp_header.destination_port, validation, config)) {
+    if !check_dst_port(tcp_header.destination_port(), validation, config) {
         return false;
     }
 
-    if (tcp_header.acknowledgment_number != validation[0] + 1) {
+    if tcp_header.acknowledgment_number() != validation[0] + 1 {
         return false;
     }
 
