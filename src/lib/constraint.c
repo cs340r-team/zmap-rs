@@ -103,19 +103,33 @@ impl Constraint {
 
     fn lookup_ip(&self, root: &TreeNodeRef, addr: u32) -> i32 {
         let mut mask: u32 = 0x80000000;
+        let mut cur_root: Rc<RefCell<TreeNode>> = root.clone();
 
         loop {
-            if root.borrow().is_leaf() {
-                return root.borrow().val;
-            }
+            {
+                let cur_node: std::cell::Ref<TreeNode> = cur_root.borrow();
+                if cur_node.is_leaf() {
+                    return cur_node.val;
+                }
 
-            if addr & mask != 0 {
-                root = &root.borrow().right.clone().unwrap();
-            } else {
-                root = &root.borrow().left.clone().unwrap();
-            }
+                if addr & mask != 0 {
+                    if let Some(ref right) = cur_node.right {
+                        cur_root = right.clone();
+                    } else {
+                        panic!("Right node is None");
+                    }
+                    //root = &root.borrow().right.clone().unwrap();
+                } else {
+                    if let Some(ref left) = cur_node.left {
+                        cur_root = left.clone();
+                    } else {
+                        panic!("Left child expected but not found.");
+                    }
+                    //root = &root.borrow().left.clone().unwrap();
+                }
 
-            mask >>= 1;
+                mask >>= 1;
+            }
         }
 
         // if addr & 0x80000000 != 0 {
@@ -134,10 +148,10 @@ impl Constraint {
             if node.borrow().is_leaf() {
                 return node.borrow().val;
             } else {
-                return self.lookup_ip(node, addr << 16);
+                return self.lookup_ip(&node, addr << 16);
             }
         } else {
-            return self.lookup_ip(self.root.clone(), addr);
+            return self.lookup_ip(&self.root.clone(), addr);
         }
         // else {
         //     if let Some(ref root) = self.root {
@@ -183,7 +197,7 @@ impl Constraint {
         }
     }
 
-    fn lookup_node(&self, addr: u32, len: i64) {
+    fn lookup_node(&self, addr: u32, len: i64) -> Rc<RefCell<TreeNode>> {
         let mut node: Rc<RefCell<TreeNode>> = self.root.clone();
         let mut mask: u32 = 0x80000000;
         for _ in 0..len {
