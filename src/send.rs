@@ -5,6 +5,7 @@ use log::{debug, error, info, warn};
 use rand::random;
 
 use crate::crypto::Cyclic;
+use crate::lib::blacklist::blacklist_count_allowed;
 use crate::lib::validate;
 use crate::net::socket::RawEthSocket;
 use crate::net::{get_interface_index, MacAddress};
@@ -27,9 +28,7 @@ impl Sender {
         let mut zsend = ctx.sender_stats.lock().unwrap();
         zsend.first_scanned = cyclic.current_ip();
 
-        // TODO: Compute number of targets
-        // let allowed = blacklist_count_allowed();
-        let allowed = 0;
+        let allowed = blacklist_count_allowed();
         if allowed == (1u64 << 32) {
             zsend.targets = u32::MAX;
         } else {
