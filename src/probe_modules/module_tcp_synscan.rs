@@ -4,9 +4,10 @@ use etherparse::{
     IpHeaders, IpNumber, Ipv4HeaderSlice, LinkSlice, NetSlice, PacketBuilder, SlicedPacket,
     TcpHeaderSlice, TransportSlice,
 };
+use eui48::MacAddress;
 use log::debug;
 
-use crate::{net::MacAddress, probe_modules::packet::make_tcp_header, state::Config};
+use crate::{probe_modules::packet::make_tcp_header, state::Config};
 
 use super::packet::{make_ip_header, MAX_PACKET_SIZE};
 
@@ -154,7 +155,7 @@ pub fn synscan_make_packet(
     tcp_header.source_port = src_port;
     tcp_header.sequence_number = tcp_seq;
 
-    let builder = PacketBuilder::ethernet2(source_mac.octets(), gateway_mac.octets())
+    let builder = PacketBuilder::ethernet2(source_mac.to_array(), gateway_mac.to_array())
         .ip(IpHeaders::Ipv4(ip_header, Default::default()))
         .tcp_header(tcp_header);
 

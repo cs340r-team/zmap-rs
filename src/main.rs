@@ -27,7 +27,6 @@ fn main() {
         .init();
 
     let mut ctx = Context::new();
-    ctx.config.iface = "enp0s1".into();
 
     // Spawn a thread to run the packet capture
     let ctx_clone = ctx.clone();

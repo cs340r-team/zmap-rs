@@ -1,14 +1,15 @@
 use std::net::Ipv4Addr;
 use std::time::Instant;
 
+use eui48::MacAddress;
 use log::{debug, error, info, warn};
 use rand::random;
 
 use crate::crypto::Cyclic;
 use crate::lib::blacklist::blacklist_count_allowed;
 use crate::lib::validate;
+use crate::net::get_interface_index;
 use crate::net::socket::RawEthSocket;
-use crate::net::{get_interface_index, MacAddress};
 use crate::probe_modules::module_tcp_synscan::{
     synscan_init_perthread, synscan_make_packet, synscan_print_packet, PACKET_LENGTH,
 };
@@ -67,8 +68,8 @@ impl Sender {
         let interface_index = get_interface_index(&self.ctx.config.iface).unwrap();
 
         // TODO
-        let source_mac = MacAddress::from_str("aa:41:72:51:54:42").unwrap();
-        let gateway_mac = MacAddress::from_str("e2:f9:f6:db:38:4a").unwrap();
+        let source_mac = MacAddress::parse_str("aa:41:72:51:54:42").unwrap();
+        let gateway_mac = self.ctx.config.gw_mac;
 
         // We don't currently cache packets, so this is a no-op
         let _ = synscan_init_perthread(&source_mac, &gateway_mac);

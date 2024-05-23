@@ -1,12 +1,17 @@
 use std::{
     net::Ipv4Addr,
+    process::Command,
+    str::FromStr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
+use eui48::MacAddress;
 use log::{debug, warn};
 
-use crate::{crypto::AesCtx, lib::validate, probe_modules::module_tcp_synscan};
+use crate::{
+    crypto::AesCtx, lib::validate, net::get_default_gateway_mac, probe_modules::module_tcp_synscan,
+};
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -28,7 +33,7 @@ pub struct Config {
     pub packet_streams: u32,
     pub use_seed: bool,
     pub seed: u32,
-    pub gw_mac: String,
+    pub gw_mac: MacAddress,
     pub dryrun: bool,
     pub quiet: bool,
     pub summary: bool,
@@ -140,9 +145,18 @@ pub struct Context {
 impl Context {
     pub fn new() -> Self {
         let mut config = Config::default();
+
+        // TODO: I would move all config setup out of this method
+
         if (config.max_results == 0) {
             config.max_results = u32::MAX;
         }
+
+        // TODO: get source interface IP address
+        // TODO: get source mac address
+
+        config.iface = "enp0s1".into();
+        config.gw_mac = get_default_gateway_mac().unwrap();
 
         config.target_port = 443;
         config.rate = 1;
@@ -175,11 +189,6 @@ impl Context {
                 config.bandwidth, config.rate
             );
         }
-
-        // TODO: other configuration setup
-
-        // TODO: get source interface IP address
-        // TODO: get gateway mac address
 
         let validate_ctx = validate::new_context();
         let sender_stats = Arc::new(Mutex::new(SenderStats::default()));

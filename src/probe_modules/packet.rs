@@ -6,14 +6,14 @@ use etherparse::{
 use libc::{ETH_P_IP, MAXTTL};
 use rand::random;
 
-use crate::net::MacAddress;
+use eui48::MacAddress;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
 pub fn make_eth_header(source: &MacAddress, destination: &MacAddress) -> Ethernet2Header {
     let mut header: Ethernet2Header = Default::default();
-    header.source = source.octets();
-    header.destination = destination.octets();
+    header.source = source.to_array();
+    header.destination = destination.to_array();
     header.ether_type = EtherType::IPV4;
     return header;
 }

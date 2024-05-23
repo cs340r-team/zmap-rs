@@ -1,8 +1,8 @@
-use libc::{c_void, sendto, sockaddr, sockaddr_ll, AF_PACKET, ETH_P_ALL, SOCK_RAW};
-use socket2::Socket;
 use std::os::unix::io::AsRawFd;
 
-use super::MacAddress;
+use eui48::MacAddress;
+use libc::{c_void, sendto, sockaddr, sockaddr_ll, AF_PACKET, ETH_P_ALL, SOCK_RAW};
+use socket2::Socket;
 
 pub struct RawEthSocket {
     inner: Socket,
