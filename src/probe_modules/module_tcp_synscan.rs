@@ -122,11 +122,15 @@ pub fn synscan_print_packet(packet: &[u8]) {
     );
 
     println!(
-        "tcp {{ sport: {} | dport: {} | seq: {} | checksum: {} }}",
+        "tcp {{ sport: {} | dport: {} | seq: {} | ack: {} ({}) | syn: {} | rst: {} | checksum: {} }}",
         tcp_header.source_port(),
         tcp_header.destination_port(),
         tcp_header.sequence_number(),
-        tcp_header.checksum()
+        tcp_header.acknowledgment_number(),
+        tcp_header.ack(),
+        tcp_header.syn(),
+        tcp_header.rst(),
+        tcp_header.checksum(),
     );
 
     println!("------------------------------------------------------");
@@ -145,15 +149,13 @@ pub fn synscan_make_packet(
     let num_ports = (config.source_port_last - config.source_port_first + 1) as u32;
     let src_port = config.source_port_first + ((validation[1] + probe_num) % num_ports) as u16;
 
-    let tcp_seq = validation[0];
-
     let mut ip_header = make_ip_header(IpNumber::TCP);
     ip_header.source = source_ip.octets();
     ip_header.destination = destination_ip.octets();
 
     let mut tcp_header = make_tcp_header(config.target_port);
     tcp_header.source_port = src_port;
-    tcp_header.sequence_number = tcp_seq;
+    tcp_header.sequence_number = validation[0];
 
     let builder = PacketBuilder::ethernet2(source_mac.to_array(), gateway_mac.to_array())
         .ip(IpHeaders::Ipv4(ip_header, Default::default()))
@@ -171,6 +173,7 @@ pub fn synscan_classify_packet(tcp_header: &TcpHeaderSlice) -> bool {
     !tcp_header.rst() // Success is defined by a SYN-ACK, not a RST
 }
 
+// Return false if dst port is outside the expected valid range
 pub fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
     if port > config.source_port_last || port < config.source_port_first {
         return false;

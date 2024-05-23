@@ -6,7 +6,7 @@ use crate::crypto::Cyclic;
 use crate::lib::blacklist::blacklist_count_allowed;
 use crate::lib::validate;
 use crate::net::socket::RawEthSocket;
-use crate::net::{get_default_gw_mac, get_interface_index, get_interface_mac};
+use crate::net::{get_interface_index, get_interface_mac};
 use crate::probe_modules::module_tcp_synscan::{
     synscan_init_perthread, synscan_make_packet, synscan_print_packet,
 };

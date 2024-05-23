@@ -5,7 +5,9 @@ use log::debug;
 
 use crate::lib::validate;
 use crate::net::pcap::*;
-use crate::probe_modules::module_tcp_synscan::{synscan_classify_packet, synscan_validate_packet};
+use crate::probe_modules::module_tcp_synscan::{
+    synscan_classify_packet, synscan_print_packet, synscan_validate_packet,
+};
 use crate::state::Context;
 
 pub struct Receiver {
@@ -39,9 +41,11 @@ impl Receiver {
         zrecv.start = Instant::now();
         drop(zrecv);
 
+        let mut num_packets = 0;
         loop {
             if let Some(packet) = self.pcap.next_packet() {
                 self.process_packet(&packet);
+                num_packets += 1;
             }
 
             let zrecv = self.ctx.receiver_stats.lock().unwrap();
@@ -60,22 +64,31 @@ impl Receiver {
                 break;
             }
             drop(zsend);
+
+            // TODO: related to the monitor thread, every X packets, update pcap stats
+            // if num_packets % 10000 == 0 {
+            //     self.update_pcap_stats();
+            // }
         }
 
         let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
         zrecv.finish = Instant::now();
         zrecv.complete = true;
+        drop(zrecv);
 
-        let pcap_stats = self.pcap.stats();
-        zrecv.pcap_recv = pcap_stats.ps_recv;
-        zrecv.pcap_drop = pcap_stats.ps_drop;
-        zrecv.pcap_ifdrop = pcap_stats.ps_ifdrop;
-
+        self.update_pcap_stats();
         debug!("Receiver finished");
     }
 
+    fn update_pcap_stats(&self) {
+        let pcap_stats = self.pcap.stats();
+        let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
+        zrecv.pcap_recv = pcap_stats.ps_recv;
+        zrecv.pcap_drop = pcap_stats.ps_drop;
+        zrecv.pcap_ifdrop = pcap_stats.ps_ifdrop;
+    }
+
     fn process_packet(&self, packet: &Packet) {
-        debug!("{packet:?}");
         if self.ctx.receiver_stats.lock().unwrap().success_unique >= self.ctx.config.max_results {
             return;
         }
@@ -101,15 +114,14 @@ impl Receiver {
 
         let src_ip = ip_header.source_addr();
         let dst_ip = ip_header.destination_addr();
-        let validation = validate::gen(&self.ctx.validate_ctx, &src_ip, &dst_ip);
+        let validation = validate::gen(&self.ctx.validate_ctx, &dst_ip, &src_ip);
         let validation = [
             u32::from_be_bytes(validation[0..4].try_into().unwrap()),
             u32::from_be_bytes(validation[4..8].try_into().unwrap()),
         ];
 
         if !synscan_validate_packet(&ip_header, &tcp_header, &validation, &self.ctx.config) {
-            // TODO probe replies aren't working
-            debug!("TCP synscan probe reply validation failed");
+            debug!("Validation for probe reply failed");
             return;
         }
 

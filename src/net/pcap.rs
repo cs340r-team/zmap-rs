@@ -46,6 +46,13 @@ pub struct pcap_stat {
     pub ps_drop: c_uint,
     pub ps_ifdrop: c_uint,
 }
+#[repr(C)]
+enum pcap_direction_t {
+    PCAP_D_INOUT,
+    PCAP_D_IN,
+    PCAP_D_OUT,
+    PCAP_D_NONE,
+}
 
 extern "C" {
     // Open a device for capturing
@@ -89,6 +96,8 @@ extern "C" {
     // Get capture statistics
     fn pcap_stats(p: *mut pcap_t, ps: *mut pcap_stat) -> i32;
 
+    // Set the direction for which packets will be captured
+    fn pcap_setdirection(p: *mut pcap_t, d: pcap_direction_t) -> i32;
 }
 
 pub struct PacketCapture {
@@ -118,6 +127,11 @@ impl PacketCapture {
         if p.is_null() {
             let err_str = unsafe { std::ffi::CStr::from_ptr(errbuf.as_ptr()) };
             panic!("pcap_open_live failed: {}", err_str.to_str().unwrap());
+        }
+
+        let res = unsafe { pcap_setdirection(p, pcap_direction_t::PCAP_D_IN) };
+        if res < 0 {
+            panic!("pcap_set_direction failed");
         }
 
         debug!("Successfully opened device for interface {interface}");
