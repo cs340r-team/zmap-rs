@@ -8,6 +8,8 @@ use rand::random;
 
 use crate::net::MacAddress;
 
+pub const MAX_PACKET_SIZE: usize = 4096;
+
 pub fn make_eth_header(source: &MacAddress, destination: &MacAddress) -> Ethernet2Header {
     let mut header: Ethernet2Header = Default::default();
     header.source = source.octets();

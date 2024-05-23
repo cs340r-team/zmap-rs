@@ -1,9 +1,12 @@
 use std::{
+    net::Ipv4Addr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
-use crate::{crypto::AesCtx, lib::validate};
+use log::{debug, warn};
+
+use crate::{crypto::AesCtx, lib::validate, probe_modules::module_tcp_synscan};
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -29,6 +32,8 @@ pub struct Config {
     pub dryrun: bool,
     pub quiet: bool,
     pub summary: bool,
+    pub source_ip_first: Ipv4Addr,
+    pub source_ip_last: Ipv4Addr,
 }
 
 impl Default for Config {
@@ -53,9 +58,11 @@ impl Default for Config {
             use_seed: false,
             seed: 0,
             gw_mac: Default::default(),
-            dryrun: false,
+            dryrun: true,
             quiet: false,
             summary: false,
+            source_ip_first: Ipv4Addr::new(0, 0, 0, 0),
+            source_ip_last: Ipv4Addr::new(0, 0, 0, 0),
         }
     }
 }
@@ -67,7 +74,7 @@ pub struct SenderStats {
     pub finish: Instant,
     pub sent: u32,
     pub blacklisted: u32,
-    pub first_scanned: u32,
+    pub first_scanned: Ipv4Addr,
     pub targets: u32,
     pub sendto_failures: u32,
 }
@@ -80,7 +87,7 @@ impl Default for SenderStats {
             finish: Instant::now(),
             sent: 0,
             blacklisted: 0,
-            first_scanned: 0,
+            first_scanned: Ipv4Addr::new(0, 0, 0, 0),
             targets: 0,
             sendto_failures: 0,
         }
@@ -137,7 +144,42 @@ impl Context {
             config.max_results = u32::MAX;
         }
 
+        config.target_port = 443;
+        config.rate = 1;
+        config.output_filename = String::from("test-recv.log");
+
+        // From send.c (sender rate config)
+        if config.bandwidth > 0 {
+            let mut packet_len = module_tcp_synscan::PACKET_LENGTH;
+            packet_len *= 8;
+            packet_len += 8 * 24; // 7 byte MAC preamble, 1 byte Start frame,
+                                  // 4 byte CRC, 12 byte inter-frame gap
+            if packet_len < 84 * 8 {
+                packet_len = 84 * 8;
+            }
+
+            if config.bandwidth / packet_len > 0xFFFFFFFF {
+                config.rate = 0;
+            } else {
+                config.rate = (config.bandwidth / packet_len) as i32;
+                if config.rate == 0 {
+                    warn!(
+                        "Sender bandwidth {} bit/s is slower that 1 pkt/s, setting rate to 1 pkt/s",
+                        config.bandwidth
+                    );
+                    config.rate = 1;
+                }
+            }
+            debug!(
+                "Sender using bandwidth {} bit/s, rate set to {} pkt/s",
+                config.bandwidth, config.rate
+            );
+        }
+
         // TODO: other configuration setup
+
+        // TODO: get source interface IP address
+        // TODO: get gateway mac address
 
         let validate_ctx = validate::new_context();
         let sender_stats = Arc::new(Mutex::new(SenderStats::default()));

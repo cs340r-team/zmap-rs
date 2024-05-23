@@ -39,6 +39,7 @@ fn find_generator(aes: &mut AesRand) -> u64 {
     digits[0]
 }
 
+#[derive(Clone)]
 pub struct Cyclic {
     generator: u64,
     current: u64,

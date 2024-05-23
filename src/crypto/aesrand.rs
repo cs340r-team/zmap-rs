@@ -8,7 +8,6 @@ pub struct AesRand {
 }
 
 impl AesRand {
-    // TODO: support seed?
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
         let key: [u8; 16] = rng.gen();

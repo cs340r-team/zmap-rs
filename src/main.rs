@@ -6,16 +6,18 @@
     special_module_name
 )]
 
-use std::time::Instant;
-
+use log::{debug, info};
 use recv::Receiver;
 use state::Context;
+
+use crate::send::Sender;
 
 mod crypto;
 mod lib;
 mod net;
 mod probe_modules;
 mod recv;
+mod send;
 mod state;
 
 fn main() {
@@ -24,28 +26,46 @@ fn main() {
         .format_target(false)
         .init();
 
-    let context = Context::new();
+    let mut ctx = Context::new();
+    ctx.config.iface = "enp0s1".into();
 
     // Spawn a thread to run the packet capture
-    let context_clone = context.clone();
+    let ctx_clone = ctx.clone();
     let recv_thread = std::thread::spawn(move || {
-        let receiver = Receiver::new("enp0s1".into(), "tcp port 9000".into(), context_clone);
+        let receiver = Receiver::new("tcp port 9000".into(), ctx_clone);
         receiver.run();
     });
 
-    // Dummy sender
-    let context_clone = context.clone();
-    let send_thread = std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(1));
-        let mut zsend = context_clone.sender_stats.lock().unwrap();
-        zsend.complete = true;
-        zsend.finish = Instant::now();
-    });
+    loop {
+        if ctx.receiver_stats.lock().unwrap().ready {
+            debug!("Receiver thread ready");
+            break;
+        }
+    }
 
-    recv_thread.join().unwrap();
-    send_thread.join().unwrap();
+    let ctx_clone = ctx.clone();
+    let sender = Sender::new(ctx_clone);
+    let mut send_threads = vec![];
+    for i in 0..ctx.config.senders {
+        let mut sender_clone = sender.clone();
+        let send_thread = std::thread::spawn(move || {
+            sender_clone.run();
+        });
+        send_threads.push(send_thread);
+    }
 
-    println!("recv_stats: {:?}", context.receiver_stats.lock().unwrap());
+    // Wait for completion
+    for send_thread in send_threads {
+        send_thread.join().expect("Unable to join sender thread");
+    }
+
+    debug!("Senders finished");
+    recv_thread.join().expect("Unable to join receiver thread");
+
+    // TODO: print summary statistics
+    println!("recv_stats: {:?}", ctx.receiver_stats.lock().unwrap());
+
+    info!("zmap-rs completed");
 
     // let socket = RawEthSocket::new();
     // let interface_index = get_interface_index("enp0s1").unwrap(); // Our default interface
