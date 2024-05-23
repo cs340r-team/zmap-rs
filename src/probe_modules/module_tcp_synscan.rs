@@ -1,4 +1,4 @@
-use std::{io::Read, net::Ipv4Addr};
+use std::net::Ipv4Addr;
 
 use etherparse::{
     IpHeaders, IpNumber, Ipv4HeaderSlice, LinkSlice, NetSlice, PacketBuilder, SlicedPacket,

@@ -1,17 +1,14 @@
-use std::net::Ipv4Addr;
 use std::time::Instant;
 
-use eui48::MacAddress;
-use log::{debug, error, info, warn};
-use rand::random;
+use log::{debug, info, warn};
 
 use crate::crypto::Cyclic;
 use crate::lib::blacklist::blacklist_count_allowed;
 use crate::lib::validate;
-use crate::net::get_interface_index;
 use crate::net::socket::RawEthSocket;
+use crate::net::{get_default_gw_mac, get_interface_index, get_interface_mac};
 use crate::probe_modules::module_tcp_synscan::{
-    synscan_init_perthread, synscan_make_packet, synscan_print_packet, PACKET_LENGTH,
+    synscan_init_perthread, synscan_make_packet, synscan_print_packet,
 };
 use crate::state::Context;
 
@@ -66,9 +63,7 @@ impl Sender {
 
         let socket = RawEthSocket::new();
         let interface_index = get_interface_index(&self.ctx.config.iface).unwrap();
-
-        // TODO
-        let source_mac = MacAddress::parse_str("aa:41:72:51:54:42").unwrap();
+        let source_mac = get_interface_mac(&self.ctx.config.iface).unwrap();
         let gateway_mac = self.ctx.config.gw_mac;
 
         // We don't currently cache packets, so this is a no-op
@@ -168,11 +163,11 @@ impl Sender {
                 if self.ctx.config.dryrun {
                     synscan_print_packet(&packet);
                 } else {
-                    // let res = socket.sendto(&packet, interface_index, &gateway_mac);
-                    // if let Err(e) = res {
-                    //     warn!("Sender sendto failed for {destination_ip}. Reason: {}", e);
-                    //     self.ctx.sender_stats.lock().unwrap().sendto_failures += 1;
-                    // }
+                    let res = socket.sendto(&packet, interface_index, &gateway_mac);
+                    if let Err(e) = res {
+                        warn!("Sender sendto failed for {destination_ip}. Reason: {}", e);
+                        self.ctx.sender_stats.lock().unwrap().sendto_failures += 1;
+                    }
                 }
             }
         }

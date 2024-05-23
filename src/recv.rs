@@ -18,8 +18,8 @@ pub struct Receiver {
 impl Receiver {
     const SEEN_IPS_SIZE: usize = 0x4000000;
 
-    pub fn new(filter: String, ctx: Context) -> Self {
-        let pcap = PacketCapture::new(&ctx.config.iface).with_filter(&filter);
+    pub fn new(filter: &str, ctx: Context) -> Self {
+        let pcap = PacketCapture::new(&ctx.config.iface).with_filter(filter);
         let seen_ips = RefCell::new(vec![0; Self::SEEN_IPS_SIZE]);
         let output_file = RefCell::new(File::create(&ctx.config.output_filename).unwrap());
         Self {
@@ -108,6 +108,8 @@ impl Receiver {
         ];
 
         if !synscan_validate_packet(&ip_header, &tcp_header, &validation, &self.ctx.config) {
+            // TODO probe replies aren't working
+            debug!("TCP synscan probe reply validation failed");
             return;
         }
 

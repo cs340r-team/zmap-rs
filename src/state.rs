@@ -1,7 +1,5 @@
 use std::{
     net::Ipv4Addr,
-    process::Command,
-    str::FromStr,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -10,7 +8,10 @@ use eui48::MacAddress;
 use log::{debug, warn};
 
 use crate::{
-    crypto::AesCtx, lib::validate, net::get_default_gateway_mac, probe_modules::module_tcp_synscan,
+    crypto::AesCtx,
+    lib::validate,
+    net::{get_default_gw_mac, get_interface_ip},
+    probe_modules::module_tcp_synscan,
 };
 
 #[derive(Clone, Debug)]
@@ -63,7 +64,7 @@ impl Default for Config {
             use_seed: false,
             seed: 0,
             gw_mac: Default::default(),
-            dryrun: true,
+            dryrun: false,
             quiet: false,
             summary: false,
             source_ip_first: Ipv4Addr::new(0, 0, 0, 0),
@@ -147,20 +148,21 @@ impl Context {
         let mut config = Config::default();
 
         // TODO: I would move all config setup out of this method
-
-        if (config.max_results == 0) {
+        if config.max_results == 0 {
             config.max_results = u32::MAX;
         }
 
-        // TODO: get source interface IP address
-        // TODO: get source mac address
+        let ifname = "enp0s1";
+        config.iface = ifname.into();
 
-        config.iface = "enp0s1".into();
-        config.gw_mac = get_default_gateway_mac().unwrap();
+        let ip = get_interface_ip(ifname).unwrap();
+        config.source_ip_first = ip;
+        config.source_ip_last = ip;
+        config.gw_mac = get_default_gw_mac().unwrap();
 
         config.target_port = 443;
         config.rate = 1;
-        config.output_filename = String::from("test-recv.log");
+        config.output_filename = String::from("zmap-recv.log");
 
         // From send.c (sender rate config)
         if config.bandwidth > 0 {

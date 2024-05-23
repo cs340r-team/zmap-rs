@@ -219,8 +219,8 @@ impl<'a> Packet<'a> {
 
 impl<'a> std::fmt::Debug for Packet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let caplen = unsafe { (*self.header).caplen };
-        let len = unsafe { (*self.header).len };
+        let caplen = (*self.header).caplen;
+        let len = (*self.header).len;
         write!(
             f,
             "Packet {{ captured length: {}, actual length: {}, data: {:?} }}",

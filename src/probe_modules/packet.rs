@@ -1,9 +1,7 @@
-use std::fmt;
-
 use etherparse::{
     EtherType, Ethernet2Header, IpFragOffset, IpNumber, Ipv4Dscp, Ipv4Header, TcpHeader,
 };
-use libc::{ETH_P_IP, MAXTTL};
+use libc::MAXTTL;
 use rand::random;
 
 use eui48::MacAddress;

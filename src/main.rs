@@ -10,7 +10,7 @@ use log::{debug, info};
 use recv::Receiver;
 use state::Context;
 
-use crate::send::Sender;
+use crate::{probe_modules::module_tcp_synscan::PCAP_FILTER, send::Sender};
 
 mod crypto;
 mod lib;
@@ -26,12 +26,12 @@ fn main() {
         .format_target(false)
         .init();
 
-    let mut ctx = Context::new();
+    let ctx = Context::new();
 
     // Spawn a thread to run the packet capture
     let ctx_clone = ctx.clone();
     let recv_thread = std::thread::spawn(move || {
-        let receiver = Receiver::new("tcp port 9000".into(), ctx_clone);
+        let receiver = Receiver::new(PCAP_FILTER, ctx_clone);
         receiver.run();
     });
 
@@ -45,7 +45,7 @@ fn main() {
     let ctx_clone = ctx.clone();
     let sender = Sender::new(ctx_clone);
     let mut send_threads = vec![];
-    for i in 0..ctx.config.senders {
+    for _ in 0..ctx.config.senders {
         let mut sender_clone = sender.clone();
         let send_thread = std::thread::spawn(move || {
             sender_clone.run();
@@ -65,40 +65,4 @@ fn main() {
     println!("recv_stats: {:?}", ctx.receiver_stats.lock().unwrap());
 
     info!("zmap-rs completed");
-
-    // let socket = RawEthSocket::new();
-    // let interface_index = get_interface_index("enp0s1").unwrap(); // Our default interface
-
-    // let source_mac = MacAddress::from_str("aa:41:72:51:54:42").unwrap();
-    // let gateway_mac = MacAddress::from_str("e2:f9:f6:db:38:4a").unwrap();
-
-    // let source_ip = Ipv4Addr::new(192, 168, 0, 2);
-
-    // let packet = synscan_make_packet(
-    //     &source_mac,
-    //     &gateway_mac,
-    //     source_ip,
-    //     Ipv4Addr::new(192, 168, 0, 5),
-    //     &[1, 2, 3, 4],
-    //     1,
-    //     &config,
-    // );
-
-    // socket
-    //     .sendto(&packet, interface_index, &gateway_mac)
-    //     .expect("Could not send packet");
-
-    // let packet = synscan_make_packet(
-    //     &source_mac,
-    //     &gateway_mac,
-    //     source_ip,
-    //     Ipv4Addr::new(192, 168, 0, 10),
-    //     &[91, 92, 93, 94],
-    //     2,
-    //     &config,
-    // );
-
-    // socket
-    //     .sendto(&packet, interface_index, &gateway_mac)
-    //     .expect("Could not send packet");
 }
