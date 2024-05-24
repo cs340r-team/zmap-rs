@@ -5,9 +5,7 @@ use log::debug;
 
 use crate::lib::validate;
 use crate::net::pcap::*;
-use crate::probe_modules::module_tcp_synscan::{
-    synscan_classify_packet, synscan_print_packet, synscan_validate_packet,
-};
+use crate::probe_modules::module_tcp_synscan::{synscan_classify_packet, synscan_validate_packet};
 use crate::state::Context;
 
 pub struct Receiver {

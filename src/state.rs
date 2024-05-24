@@ -160,7 +160,7 @@ impl Context {
         config.source_ip_last = ip;
         config.gw_mac = get_default_gw_mac().unwrap();
 
-        config.dryrun = true;
+        // config.dryrun = true;
         config.target_port = 443;
         config.rate = 1;
         config.output_filename = String::from("zmap-recv.log");

@@ -97,7 +97,7 @@ mod tests {
         let starting_point: u32 = cyclic.current_ip().into();
 
         // We should only need to loop 2^32 - 1 times to hit every IP
-        for i in 0..(1u64 << 32) {
+        for _ in 0..(1u64 << 32) {
             let ip: u32 = cyclic.next_ip().into();
 
             // Set the bit corresponding to this IP

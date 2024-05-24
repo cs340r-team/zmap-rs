@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use log::{debug, info, warn};
+use log::{info, warn};
 
 use crate::state::Context;
 
@@ -44,7 +44,7 @@ impl Monitor {
         let zsend = self.ctx.sender_stats.lock().unwrap();
         let zsend_complete = zsend.complete;
         let zsend_start = zsend.start;
-        let zsend_finish = zsend.start;
+        let zsend_finish = zsend.finish;
         let zsend_sent = zsend.sent;
         let zsend_sendto_failures = zsend.sendto_failures;
         let zsend_targets = zsend.targets;
@@ -56,7 +56,7 @@ impl Monitor {
         let zrecv_pcap_ifdrop = zrecv.pcap_ifdrop;
         drop(zrecv);
 
-        let age = Instant::now().duration_since(zsend_start);
+        let age = Instant::now() - zsend_start;
         let age_f64 = age.as_secs_f64();
         let delta = Instant::now() - self.last_now;
         let delta_f64 = delta.as_secs_f64();
@@ -68,7 +68,7 @@ impl Monitor {
             zrecv_success_unique,
             age,
         );
-        let percent_complete = 100f64 * (age_f64 / (age_f64 + remaining_secs.as_secs_f64()));
+        let percent_complete = 100.0 * (age_f64 / (age_f64 + remaining_secs.as_secs_f64()));
 
         let send_rate = ((zsend_sent - self.last_sent) as f64 / delta_f64);
         let send_avg = (zsend_sent as f64) / age_f64;
@@ -89,7 +89,7 @@ impl Monitor {
         }
 
         let fail_rate = ((zsend_sendto_failures - self.last_failures) as f64) / delta_f64;
-        if fail_rate > ((zsend_sent as f64) / age_f64) / 100f64 {
+        if fail_rate > ((zsend_sent as f64) / age_f64) / 100.0 {
             warn!(
                 "Failed to send {:.0} packets/sec ({} total failures)",
                 fail_rate, zsend_sendto_failures
@@ -110,12 +110,12 @@ impl Monitor {
                 recv_avg,
                 pcap_drop_rate,
                 pcap_drop_rate_avg,
-                ((zrecv_success_unique as f64) * 100f64) / (zsend_sent as f64)
+                ((zrecv_success_unique as f64) * 100.0) / (zsend_sent as f64),
             );
         } else {
             let send_avg = (zsend_sent as f64 / (zsend_finish - zsend_start).as_secs_f64());
             info!(
-                "{:.0?} {:.2}% ({:.0?}); send: {:.0} p/s ({:.0} p/s avg); recv {} {:.0} p/s ({:.0} p/s avg); drops {:.0} p/s ({:.0} p/s avg); hits: {:.2}%",
+                "{:.0?} {:.2}% ({:.0?}); send: {} done ({:.0} p/s avg); recv {} {:.0} p/s ({:.0} p/s avg); drops {:.0} p/s ({:.0} p/s avg); hits: {:.2}%",
                 age,
                 percent_complete,
                 remaining_secs,
@@ -126,7 +126,7 @@ impl Monitor {
                 recv_avg,
                 pcap_drop_rate,
                 pcap_drop_rate_avg,
-                ((zrecv_success_unique as f64) * 100f64) / (zsend_sent as f64)
+                ((zrecv_success_unique as f64) * 100.0) / (zsend_sent as f64)
             );
         }
 
@@ -155,7 +155,7 @@ impl Monitor {
             if zsend_targets > 0 {
                 let done = (zsend_sent as f64) / (zsend_targets as f64);
                 target_duration =
-                    (1f64 - done) * (age_f64 / done) + self.ctx.config.cooldown_secs.as_secs_f64();
+                    (1.0 - done) * (age_f64 / done) + self.ctx.config.cooldown_secs.as_secs_f64();
             }
 
             if self.ctx.config.max_runtime > 0 {
@@ -168,16 +168,11 @@ impl Monitor {
                 results_duration = (1. - done) * (age_f64 / done);
             }
 
-            if target_duration == f64::INFINITY
-                && runtime_duration == f64::INFINITY
-                && results_duration == f64::INFINITY
-            {
+            let min = target_duration.min(runtime_duration).min(results_duration);
+            if min == f64::INFINITY {
                 return Duration::from_secs(0);
             }
-
-            return Duration::from_secs_f64(
-                target_duration.min(runtime_duration).min(results_duration),
-            );
+            return Duration::from_secs_f64(min);
         }
 
         return self.ctx.config.cooldown_secs - (Instant::now() - zsend_finish);

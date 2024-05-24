@@ -6,6 +6,7 @@
     special_module_name
 )]
 
+use lib::blacklist::Blacklist;
 use log::{debug, info};
 use monitor::Monitor;
 use probe_modules::module_tcp_synscan::PCAP_FILTER;
@@ -30,6 +31,8 @@ fn main() {
 
     let ctx = Context::new();
 
+    let blacklist = Blacklist::new(None, Some("./conf/blocklist.conf"));
+
     // Spawn a thread to run the packet capture
     let ctx_clone = ctx.clone();
     let recv_thread = std::thread::spawn(move || {
@@ -45,7 +48,8 @@ fn main() {
     }
 
     let ctx_clone = ctx.clone();
-    let sender = Sender::new(ctx_clone);
+    let sender = Sender::new(ctx_clone, blacklist);
+
     let mut send_threads = vec![];
     for _ in 0..ctx.config.senders {
         let mut sender_clone = sender.clone();
@@ -65,8 +69,6 @@ fn main() {
     for send_thread in send_threads {
         send_thread.join().expect("Unable to join sender thread");
     }
-
-    debug!("Senders finished");
 
     recv_thread.join().expect("Unable to join receiver thread");
     monitor_thread

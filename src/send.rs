@@ -3,7 +3,7 @@ use std::time::Instant;
 use log::{debug, info, warn};
 
 use crate::crypto::Cyclic;
-use crate::lib::blacklist::blacklist_count_allowed;
+use crate::lib::blacklist::Blacklist;
 use crate::lib::validate;
 use crate::net::socket::RawEthSocket;
 use crate::net::{get_interface_index, get_interface_mac};
@@ -16,17 +16,24 @@ use crate::state::Context;
 pub struct Sender {
     ctx: Context,
     cyclic: Cyclic,
+    blacklist: Blacklist,
 }
 
 impl Sender {
-    pub fn new(ctx: Context) -> Self {
+    pub fn new(ctx: Context, blacklist: Blacklist) -> Self {
         // Create a generator and starting position
-        let cyclic = Cyclic::new();
+        let mut cyclic = Cyclic::new();
 
         let mut zsend = ctx.sender_stats.lock().unwrap();
-        zsend.first_scanned = cyclic.current_ip();
 
-        let allowed = blacklist_count_allowed();
+        // Advance past any blacklisted addresses
+        zsend.first_scanned = cyclic.current_ip();
+        while !blacklist.is_allowed(zsend.first_scanned) {
+            zsend.blacklisted += 1;
+            zsend.first_scanned = cyclic.next_ip();
+        }
+
+        let allowed = blacklist.count_allowed();
         if allowed == (1u64 << 32) {
             zsend.targets = u32::MAX;
         } else {
@@ -54,7 +61,11 @@ impl Sender {
         zsend.start = Instant::now();
         drop(zsend);
 
-        Self { ctx, cyclic }
+        Self {
+            ctx,
+            cyclic,
+            blacklist,
+        }
     }
 
     pub fn run(&mut self) {
@@ -84,8 +95,8 @@ impl Sender {
             }
 
             let duration = (Instant::now() - last_time).as_secs_f64();
-            delay *= ((1f64 / duration) / (self.ctx.config.rate / self.ctx.config.senders) as f64)
-                as u32;
+            delay *=
+                ((1.0 / duration) / (self.ctx.config.rate / self.ctx.config.senders) as f64) as u32;
             interval = (self.ctx.config.rate / self.ctx.config.senders) / 20;
             last_time = Instant::now();
         }
@@ -133,11 +144,17 @@ impl Sender {
                 break;
             }
 
-            let destination_ip = self.cyclic.next_ip();
+            let mut destination_ip = self.cyclic.next_ip();
+            while !self.blacklist.is_allowed(destination_ip) {
+                destination_ip = self.cyclic.next_ip();
+                zsend.blacklisted += 1;
+            }
+
             if destination_ip == zsend.first_scanned {
                 zsend.complete = true;
                 zsend.finish = Instant::now();
             }
+
             zsend.sent += 1;
             drop(zsend);
 
