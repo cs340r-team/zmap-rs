@@ -24,7 +24,7 @@ impl Sender {
         // Create a generator and starting position
         let mut cyclic = Cyclic::new();
 
-        let mut zsend = ctx.sender_stats.lock().unwrap();
+        let mut zsend = ctx.sender_state.lock().unwrap();
 
         // Advance past any blacklisted addresses
         zsend.first_scanned = cyclic.current_ip();
@@ -70,7 +70,7 @@ impl Sender {
 
     pub fn run(&mut self) {
         debug!("Sender thread started and running");
-        let zsend = self.ctx.sender_stats.lock().unwrap();
+        let zsend = self.ctx.sender_state.lock().unwrap();
 
         let socket = RawEthSocket::new();
         let interface_index = get_interface_index(&self.ctx.config.iface).unwrap();
@@ -125,7 +125,7 @@ impl Sender {
             }
 
             // Generate next ip from cyclic group and update global state
-            let mut zsend = self.ctx.sender_stats.lock().unwrap();
+            let mut zsend = self.ctx.sender_state.lock().unwrap();
             if zsend.complete {
                 break;
             }
@@ -182,7 +182,7 @@ impl Sender {
                     let res = socket.sendto(&packet, interface_index, &gateway_mac);
                     if let Err(e) = res {
                         warn!("Sender sendto failed for {destination_ip}. Reason: {}", e);
-                        self.ctx.sender_stats.lock().unwrap().sendto_failures += 1;
+                        self.ctx.sender_state.lock().unwrap().sendto_failures += 1;
                     }
                 }
             }

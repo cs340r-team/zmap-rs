@@ -41,7 +41,7 @@ fn main() {
     });
 
     loop {
-        if ctx.receiver_stats.lock().unwrap().ready {
+        if ctx.receiver_state.lock().unwrap().ready {
             debug!("Receiver thread ready");
             break;
         }
@@ -76,7 +76,7 @@ fn main() {
         .expect("Unable to join monitor thread");
 
     // TODO: print summary statistics
-    println!("recv_stats: {:?}", ctx.receiver_stats.lock().unwrap());
+    println!("recv_stats: {:?}", ctx.receiver_state.lock().unwrap());
 
     info!("zmap-rs completed");
 }

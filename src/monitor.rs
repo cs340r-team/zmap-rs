@@ -29,8 +29,8 @@ impl Monitor {
 
     pub fn run(&mut self) {
         loop {
-            let zsend_complete = self.ctx.sender_stats.lock().unwrap().complete;
-            let zrecv_complete = self.ctx.receiver_stats.lock().unwrap().complete;
+            let zsend_complete = self.ctx.sender_state.lock().unwrap().complete;
+            let zrecv_complete = self.ctx.receiver_state.lock().unwrap().complete;
             if zsend_complete && zrecv_complete {
                 break;
             }
@@ -41,7 +41,7 @@ impl Monitor {
     }
 
     fn update(&mut self) {
-        let zsend = self.ctx.sender_stats.lock().unwrap();
+        let zsend = self.ctx.sender_state.lock().unwrap();
         let zsend_complete = zsend.complete;
         let zsend_start = zsend.start;
         let zsend_finish = zsend.finish;
@@ -50,7 +50,7 @@ impl Monitor {
         let zsend_targets = zsend.targets;
         drop(zsend);
 
-        let zrecv = self.ctx.receiver_stats.lock().unwrap();
+        let zrecv = self.ctx.receiver_state.lock().unwrap();
         let zrecv_success_unique = zrecv.success_unique;
         let zrecv_pcap_drop = zrecv.pcap_drop;
         let zrecv_pcap_ifdrop = zrecv.pcap_ifdrop;

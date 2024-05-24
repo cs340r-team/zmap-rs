@@ -34,7 +34,7 @@ impl Receiver {
         debug!("Receiver thread started");
 
         // Signal to main thread that receiver thread is ready to go
-        let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
+        let mut zrecv = self.ctx.receiver_state.lock().unwrap();
         zrecv.ready = true;
         zrecv.start = Instant::now();
         drop(zrecv);
@@ -45,23 +45,23 @@ impl Receiver {
                 self.update_pcap_stats();
             }
 
-            let zrecv = self.ctx.receiver_stats.lock().unwrap();
+            let zrecv = self.ctx.receiver_state.lock().unwrap();
             if self.ctx.config.max_results > 0
                 && zrecv.success_unique >= self.ctx.config.max_results
             {
-                self.ctx.sender_stats.lock().unwrap().complete = true;
+                self.ctx.sender_state.lock().unwrap().complete = true;
                 break;
             }
             drop(zrecv);
 
-            let zsend = self.ctx.sender_stats.lock().unwrap();
+            let zsend = self.ctx.sender_state.lock().unwrap();
             if zsend.complete && Instant::now() - zsend.finish > self.ctx.config.cooldown_secs {
                 break;
             }
             drop(zsend);
         }
 
-        let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
+        let mut zrecv = self.ctx.receiver_state.lock().unwrap();
         zrecv.finish = Instant::now();
         zrecv.complete = true;
         drop(zrecv);
@@ -72,14 +72,14 @@ impl Receiver {
 
     fn update_pcap_stats(&self) {
         let pcap_stats = self.pcap.stats();
-        let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
+        let mut zrecv = self.ctx.receiver_state.lock().unwrap();
         zrecv.pcap_recv = pcap_stats.ps_recv;
         zrecv.pcap_drop = pcap_stats.ps_drop;
         zrecv.pcap_ifdrop = pcap_stats.ps_ifdrop;
     }
 
     fn process_packet(&self, packet: &Packet) {
-        if self.ctx.receiver_stats.lock().unwrap().success_unique >= self.ctx.config.max_results {
+        if self.ctx.receiver_state.lock().unwrap().success_unique >= self.ctx.config.max_results {
             return;
         }
 
@@ -115,7 +115,7 @@ impl Receiver {
             return;
         }
 
-        let mut zrecv = self.ctx.receiver_stats.lock().unwrap();
+        let mut zrecv = self.ctx.receiver_state.lock().unwrap();
         if synscan_classify_packet(&tcp_header) {
             zrecv.success_total += 1;
 
@@ -128,7 +128,7 @@ impl Receiver {
                 writeln!(self.output_file.borrow_mut(), "{}", src_ip.to_string()).unwrap();
             }
 
-            if self.ctx.sender_stats.lock().unwrap().complete {
+            if self.ctx.sender_state.lock().unwrap().complete {
                 zrecv.cooldown_total += 1;
                 if !is_repeat {
                     zrecv.cooldown_unique += 1;

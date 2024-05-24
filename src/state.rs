@@ -74,7 +74,7 @@ impl Default for Config {
 }
 
 #[derive(Debug)]
-pub struct SenderStats {
+pub struct SenderState {
     pub complete: bool,
     pub start: Instant,
     pub finish: Instant,
@@ -85,7 +85,7 @@ pub struct SenderStats {
     pub sendto_failures: u32,
 }
 
-impl Default for SenderStats {
+impl Default for SenderState {
     fn default() -> Self {
         Self {
             complete: false,
@@ -101,7 +101,7 @@ impl Default for SenderStats {
 }
 
 #[derive(Debug)]
-pub struct ReceiverStats {
+pub struct ReceiverState {
     pub ready: bool,
     pub complete: bool,
     pub success_unique: u32,
@@ -116,7 +116,7 @@ pub struct ReceiverStats {
     pub pcap_ifdrop: u32,
 }
 
-impl Default for ReceiverStats {
+impl Default for ReceiverState {
     fn default() -> Self {
         Self {
             ready: false,
@@ -139,8 +139,8 @@ impl Default for ReceiverStats {
 pub struct Context {
     pub config: Config,
     pub validate_ctx: AesCtx,
-    pub sender_stats: Arc<Mutex<SenderStats>>,
-    pub receiver_stats: Arc<Mutex<ReceiverStats>>,
+    pub sender_state: Arc<Mutex<SenderState>>,
+    pub receiver_state: Arc<Mutex<ReceiverState>>,
 }
 
 impl Context {
@@ -194,14 +194,14 @@ impl Context {
         }
 
         let validate_ctx = validate::new_context();
-        let sender_stats = Arc::new(Mutex::new(SenderStats::default()));
-        let receiver_stats = Arc::new(Mutex::new(ReceiverStats::default()));
+        let sender_stats = Arc::new(Mutex::new(SenderState::default()));
+        let receiver_stats = Arc::new(Mutex::new(ReceiverState::default()));
 
         Self {
             config,
             validate_ctx,
-            sender_stats,
-            receiver_stats,
+            sender_state: sender_stats,
+            receiver_state: receiver_stats,
         }
     }
 }
