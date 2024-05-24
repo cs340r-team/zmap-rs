@@ -57,7 +57,11 @@ impl Cyclic {
             }
         }
 
-        debug!("Cyclic initialized with generator: {generator} and starting point: {current}");
+        debug!(
+            "Cyclic initialized with generator: {} and starting point: {}",
+            generator,
+            Ipv4Addr::from((current as u32).to_be())
+        );
         Self { generator, current }
     }
 

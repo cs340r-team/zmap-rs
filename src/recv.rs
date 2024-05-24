@@ -41,11 +41,10 @@ impl Receiver {
         zrecv.start = Instant::now();
         drop(zrecv);
 
-        let mut num_packets = 0;
         loop {
             if let Some(packet) = self.pcap.next_packet() {
                 self.process_packet(&packet);
-                num_packets += 1;
+                self.update_pcap_stats();
             }
 
             let zrecv = self.ctx.receiver_stats.lock().unwrap();
@@ -58,17 +57,10 @@ impl Receiver {
             drop(zrecv);
 
             let zsend = self.ctx.sender_stats.lock().unwrap();
-            if zsend.complete
-                && Instant::now().duration_since(zsend.finish) > self.ctx.config.cooldown_secs
-            {
+            if zsend.complete && Instant::now() - zsend.finish > self.ctx.config.cooldown_secs {
                 break;
             }
             drop(zsend);
-
-            // TODO: related to the monitor thread, every X packets, update pcap stats
-            // if num_packets % 10000 == 0 {
-            //     self.update_pcap_stats();
-            // }
         }
 
         let mut zrecv = self.ctx.receiver_stats.lock().unwrap();

@@ -83,7 +83,7 @@ impl Sender {
                 std::hint::spin_loop();
             }
 
-            let duration = Instant::now().duration_since(last_time).as_secs_f64();
+            let duration = (Instant::now() - last_time).as_secs_f64();
             delay *= ((1f64 / duration) / (self.ctx.config.rate / self.ctx.config.senders) as f64)
                 as u32;
             interval = (self.ctx.config.rate / self.ctx.config.senders) / 20;
@@ -99,7 +99,7 @@ impl Sender {
 
                 if interval == 0 || (count % interval == 0) {
                     let t = Instant::now();
-                    let duration = t.duration_since(last_time).as_secs_f64();
+                    let duration = (t - last_time).as_secs_f64();
                     delay *= ((count - last_count) as f64
                         / duration
                         / (self.ctx.config.rate / self.ctx.config.senders) as f64)
@@ -126,8 +126,7 @@ impl Sender {
             }
 
             if self.ctx.config.max_runtime > 0
-                && self.ctx.config.max_runtime
-                    <= Instant::now().duration_since(zsend.start).as_secs() as u32
+                && self.ctx.config.max_runtime <= (Instant::now() - zsend.start).as_secs() as u32
             {
                 zsend.complete = true;
                 zsend.finish = Instant::now();

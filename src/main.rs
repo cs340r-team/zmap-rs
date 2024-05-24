@@ -7,13 +7,15 @@
 )]
 
 use log::{debug, info};
+use monitor::Monitor;
+use probe_modules::module_tcp_synscan::PCAP_FILTER;
 use recv::Receiver;
+use send::Sender;
 use state::Context;
-
-use crate::{probe_modules::module_tcp_synscan::PCAP_FILTER, send::Sender};
 
 mod crypto;
 mod lib;
+mod monitor;
 mod net;
 mod probe_modules;
 mod recv;
@@ -53,13 +55,23 @@ fn main() {
         send_threads.push(send_thread);
     }
 
+    let ctx_clone = ctx.clone();
+    let monitor_thread = std::thread::spawn(move || {
+        let mut monitor = Monitor::new(ctx_clone);
+        monitor.run();
+    });
+
     // Wait for completion
     for send_thread in send_threads {
         send_thread.join().expect("Unable to join sender thread");
     }
 
     debug!("Senders finished");
+
     recv_thread.join().expect("Unable to join receiver thread");
+    monitor_thread
+        .join()
+        .expect("Unable to join monitor thread");
 
     // TODO: print summary statistics
     println!("recv_stats: {:?}", ctx.receiver_stats.lock().unwrap());
