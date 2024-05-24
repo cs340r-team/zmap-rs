@@ -68,7 +68,7 @@ impl Monitor {
             zrecv_success_unique,
             age,
         );
-        let percent_complete = 100.0 * (age_f64 / (age_f64 + remaining_secs.as_secs_f64()));
+        let percent_complete = 100.0 * age_f64 / (age_f64 + remaining_secs.as_secs_f64());
 
         let send_rate = (zsend_sent - self.last_sent) as f64 / delta_f64;
         let send_avg = (zsend_sent as f64) / age_f64;

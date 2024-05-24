@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use log::{debug, info, warn};
 
@@ -81,31 +81,32 @@ impl Sender {
         let _ = synscan_init_perthread(&source_mac, &gateway_mac);
         drop(zsend);
 
-        let mut count = 0;
+        let mut count: u32 = 0;
         let mut last_count = count;
         let mut last_time = Instant::now();
-        let mut delay = 0;
-        let mut interval = 0;
+        let mut delay: f64 = 0.0;
+        let mut interval: u32 = 0;
 
         if self.ctx.config.rate > 0 {
             // Estimate initial rate
-            delay = 10000;
-            for _ in 0..delay {
+            delay = 10000.0;
+            for _ in 0..delay as u32 {
                 std::hint::spin_loop();
             }
 
             let duration = (Instant::now() - last_time).as_secs_f64();
-            delay *= ((1.0 / duration)
-                / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64)
-                as u32;
-            interval = (self.ctx.config.rate / self.ctx.config.sender_threads) / 20;
+            delay *=
+                (1.0 / duration / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64);
+
+            interval = ((self.ctx.config.rate / self.ctx.config.sender_threads) / 20) as u32;
             last_time = Instant::now();
         }
 
         loop {
-            if delay > 0 {
+            if delay > 0.0 {
                 count += 1;
-                for _ in 0..delay {
+                let start = Instant::now();
+                for _ in 0..delay as u32 {
                     std::hint::spin_loop();
                 }
 
@@ -114,10 +115,10 @@ impl Sender {
                     let duration = (t - last_time).as_secs_f64();
                     delay *= ((count - last_count) as f64
                         / duration
-                        / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64)
-                        as u32;
-                    if delay < 1 {
-                        delay = 1;
+                        / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64);
+
+                    if delay < 1.0 {
+                        delay = 1.0;
                     }
 
                     last_count = count;
