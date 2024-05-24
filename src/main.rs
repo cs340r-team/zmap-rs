@@ -6,6 +6,7 @@
     special_module_name
 )]
 
+use affinity::{get_core_num, set_thread_affinity};
 use lib::blacklist::Blacklist;
 use log::{debug, info};
 use monitor::Monitor;
@@ -37,9 +38,12 @@ fn main() {
         ctx.config.blacklist_file.clone(),
     );
 
+    let num_cores = get_core_num();
+
     // Spawn a packet capture thread
     let ctx_clone = ctx.clone();
     let recv_thread = std::thread::spawn(move || {
+        set_thread_affinity([0]);
         let receiver = Receiver::new(PCAP_FILTER, ctx_clone);
         receiver.run();
     });
@@ -54,17 +58,22 @@ fn main() {
     let ctx_clone = ctx.clone();
     let sender = Sender::new(ctx_clone, blacklist);
     let mut send_threads = vec![];
+    let mut core = 1;
     for _ in 0..ctx.config.sender_threads {
         let mut sender_clone = sender.clone();
         let send_thread = std::thread::spawn(move || {
+            set_thread_affinity([core % num_cores]);
             sender_clone.run();
         });
         send_threads.push(send_thread);
+        core += 1;
     }
 
     // Create monitor thread
     let ctx_clone = ctx.clone();
     let monitor_thread = std::thread::spawn(move || {
+        let core = (1 + ctx.config.sender_threads as usize) % num_cores;
+        set_thread_affinity([core]);
         let mut monitor = Monitor::new(ctx_clone);
         monitor.run();
     });
