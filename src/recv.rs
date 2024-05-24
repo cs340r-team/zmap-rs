@@ -1,6 +1,6 @@
 use std::{cell::RefCell, fs::File, io::Write, net::Ipv4Addr, time::Instant};
 
-use etherparse::{NetSlice, SlicedPacket, TcpHeaderSlice, TransportSlice};
+use etherparse::{NetSlice, SlicedPacket};
 use log::debug;
 
 use crate::config::Context;
@@ -92,15 +92,6 @@ impl Receiver {
                 return;
             }
         };
-        let tcp_header = match &sliced_packet.transport {
-            Some(TransportSlice::Tcp(slice)) => {
-                TcpHeaderSlice::from_slice(slice.slice()).expect("Could not create TcpHeaderSlice")
-            }
-            _ => {
-                debug!("Could not unpack transport slice");
-                return;
-            }
-        };
 
         let src_ip = ip_header.source_addr();
         let dst_ip = ip_header.destination_addr();
@@ -110,13 +101,13 @@ impl Receiver {
             u32::from_be_bytes(validation[4..8].try_into().unwrap()),
         ];
 
-        if !synscan_validate_packet(&ip_header, &tcp_header, &validation, &self.ctx.config) {
+        if !synscan_validate_packet(packet.data, &validation, &self.ctx.config) {
             debug!("Validation for probe reply failed");
             return;
         }
 
         let mut zrecv = self.ctx.receiver_state.lock().unwrap();
-        if synscan_classify_packet(&tcp_header) {
+        if synscan_classify_packet(packet.data) {
             zrecv.success_total += 1;
 
             let is_repeat = self.check_ip(src_ip);

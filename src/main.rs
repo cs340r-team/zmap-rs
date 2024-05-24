@@ -1,5 +1,5 @@
 #![allow(
-    unused,
+    // unused,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -14,7 +14,7 @@ use probe_modules::module_tcp_synscan::PCAP_FILTER;
 use recv::Receiver;
 use send::Sender;
 
-use crate::config::create_context;
+use crate::{config::create_context, probe_modules::module_tcp_synscan::NaviveProbeGenerator};
 
 mod config;
 mod crypto;
@@ -43,7 +43,7 @@ fn main() {
     // Spawn a packet capture thread
     let ctx_clone = ctx.clone();
     let recv_thread = std::thread::spawn(move || {
-        set_thread_affinity([0]);
+        set_thread_affinity([0]).unwrap();
         let receiver = Receiver::new(PCAP_FILTER, ctx_clone);
         receiver.run();
     });
@@ -62,8 +62,9 @@ fn main() {
     for _ in 0..ctx.config.sender_threads {
         let mut sender_clone = sender.clone();
         let send_thread = std::thread::spawn(move || {
-            set_thread_affinity([core % num_cores]);
-            sender_clone.run();
+            set_thread_affinity([core % num_cores]).unwrap();
+            let mut probe_generator = NaviveProbeGenerator::new();
+            sender_clone.run(&mut probe_generator);
         });
         send_threads.push(send_thread);
         core += 1;
@@ -73,7 +74,7 @@ fn main() {
     let ctx_clone = ctx.clone();
     let monitor_thread = std::thread::spawn(move || {
         let core = (1 + ctx.config.sender_threads as usize) % num_cores;
-        set_thread_affinity([core]);
+        set_thread_affinity([core]).unwrap();
         let mut monitor = Monitor::new(ctx_clone);
         monitor.run();
     });

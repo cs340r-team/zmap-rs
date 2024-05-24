@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use log::{debug, info, warn};
 
@@ -8,9 +8,8 @@ use crate::lib::blacklist::Blacklist;
 use crate::lib::validate;
 use crate::net::socket::RawEthSocket;
 use crate::net::{get_interface_index, get_interface_mac};
-use crate::probe_modules::module_tcp_synscan::{
-    synscan_init_perthread, synscan_make_packet, synscan_print_packet,
-};
+use crate::probe_modules::module_tcp_synscan::synscan_print_packet;
+use crate::probe_modules::probe_modules::ProbeGenerator;
 
 #[derive(Clone)]
 pub struct Sender {
@@ -68,7 +67,7 @@ impl Sender {
         }
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, probe_module: &mut dyn ProbeGenerator) {
         debug!("Sender thread started and running");
         let zsend = self.ctx.sender_state.lock().unwrap();
 
@@ -78,7 +77,7 @@ impl Sender {
         let gateway_mac = self.ctx.config.gw_mac;
 
         // We don't currently cache packets, so this is a no-op
-        let _ = synscan_init_perthread(&source_mac, &gateway_mac);
+        probe_module.thread_initialize(&source_mac, &gateway_mac);
         drop(zsend);
 
         let mut count: u32 = 0;
@@ -105,7 +104,6 @@ impl Sender {
         loop {
             if delay > 0.0 {
                 count += 1;
-                let start = Instant::now();
                 for _ in 0..delay as u32 {
                     std::hint::spin_loop();
                 }
@@ -113,9 +111,9 @@ impl Sender {
                 if interval == 0 || (count % interval == 0) {
                     let t = Instant::now();
                     let duration = (t - last_time).as_secs_f64();
-                    delay *= ((count - last_count) as f64
+                    delay *= (count - last_count) as f64
                         / duration
-                        / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64);
+                        / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64;
 
                     if delay < 1.0 {
                         delay = 1.0;
@@ -168,22 +166,22 @@ impl Sender {
                     u32::from_be_bytes(validation[4..8].try_into().unwrap()),
                 ];
 
-                let packet = synscan_make_packet(
-                    &source_mac,
-                    &gateway_mac,
+                let packet = probe_module.make_packet(
                     &source_ip,
                     &destination_ip,
                     &validation,
                     i,
-                    &self.ctx.config,
+                    self.ctx.config.source_port_first,
+                    self.ctx.config.source_port_last,
+                    self.ctx.config.target_port,
                 );
 
                 if self.ctx.config.dryrun {
                     if !self.ctx.config.quiet {
-                        synscan_print_packet(&packet);
+                        synscan_print_packet(packet);
                     }
                 } else {
-                    let res = socket.sendto(&packet, interface_index, &gateway_mac);
+                    let res = socket.sendto(packet, interface_index, &gateway_mac);
                     if let Err(e) = res {
                         warn!("Sender sendto failed for {destination_ip}. Reason: {}", e);
                         self.ctx.sender_state.lock().unwrap().sendto_failures += 1;
