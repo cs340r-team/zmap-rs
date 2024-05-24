@@ -1,7 +1,7 @@
 // pub fn blacklist_count_allowed() -> u64 {
 //     return 1u64 << 32;
 // }
-use blocklist::constraint;
+use blocklist::constraint; // update for this folder
 use constraint::{Constraint, TreeNode};
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -33,22 +33,22 @@ use std::path::Path;
 //     Ok(())
 // }
 fn init(file: &str, name: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
-    let fp = File::open(file)?;
-    let reader = io::BufReader::new(fp);
+    let fp: File = File::open(file)?;
+    let reader: io::BufReader<File> = io::BufReader::new(fp);
 
     for line in reader.lines() {
-        let line = line?;
-        let line = line.split('#').next().unwrap_or("").trim();
+        let line: String = line?;
+        let line: &str = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() {
             continue;
         }
-        let mut parts = line.split('/');
+        let mut parts: std::str::Split<char> = line.split('/');
         let ip = parts.next().unwrap();
-        let prefix_len = parts.next().unwrap_or("32").parse::<i32>().unwrap_or(32);
-        let addr = ip.parse::<Ipv4Addr>().unwrap();
+        let prefix_len: i32 = parts.next().unwrap_or("32").parse::<i32>().unwrap_or(32);
+        let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
 
         // Borrow the root node separately to avoid multiple mutable borrows
-        let root = &mut constraint.root;
+        let root: &mut Box<TreeNode> = &mut constraint.root;
         constraint.set_recurse(root, u32::from(addr).swap_bytes(), prefix_len, value);
     }
 
