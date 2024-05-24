@@ -75,7 +75,7 @@ pub struct Config {
     pub rate: i32,
 
     /// Set send rate in bits/second (supports suffixes G, M and K)
-    #[arg(short = 'B', long, value_parser = parse_bandwidth, default_value = "1K")]
+    #[arg(short = 'B', long, value_parser = parse_bandwidth, default_value = "0K")]
     pub bandwidth: u64,
 
     /// How long to continue receiving after sending last probe
