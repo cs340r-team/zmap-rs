@@ -77,7 +77,14 @@ impl Sender {
         let gateway_mac = self.ctx.config.gw_mac;
 
         // We don't currently cache packets, so this is a no-op
-        probe_module.thread_initialize(&source_mac, &gateway_mac);
+        probe_module.thread_initialize(
+            &source_mac,
+            &gateway_mac,
+            &self.ctx.config.source_ip_first,
+            self.ctx.config.source_port_first,
+            self.ctx.config.source_port_last,
+            self.ctx.config.target_port,
+        );
         drop(zsend);
 
         let mut count: u32 = 0;
@@ -159,23 +166,17 @@ impl Sender {
             drop(zsend);
 
             for i in 0..self.ctx.config.probes {
-                let source_ip = self.ctx.config.source_ip_first;
-                let validation = validate::gen(&self.ctx.validate_ctx, &source_ip, &destination_ip);
+                let validation = validate::gen(
+                    &self.ctx.validate_ctx,
+                    &self.ctx.config.source_ip_first,
+                    &destination_ip,
+                );
                 let validation = [
                     u32::from_be_bytes(validation[0..4].try_into().unwrap()),
                     u32::from_be_bytes(validation[4..8].try_into().unwrap()),
                 ];
 
-                let packet = probe_module.make_packet(
-                    &source_ip,
-                    &destination_ip,
-                    &validation,
-                    i,
-                    self.ctx.config.source_port_first,
-                    self.ctx.config.source_port_last,
-                    self.ctx.config.target_port,
-                );
-
+                let packet = probe_module.make_packet(&destination_ip, &validation, i);
                 if self.ctx.config.dryrun {
                     if !self.ctx.config.quiet {
                         synscan_print_packet(packet);

@@ -1,5 +1,5 @@
 #![allow(
-    // unused,
+    unused,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -63,7 +63,7 @@ fn main() {
         let mut sender_clone = sender.clone();
         let send_thread = std::thread::spawn(move || {
             set_thread_affinity([core % num_cores]).unwrap();
-            let mut probe_generator = NaviveProbeGenerator::new();
+            let mut probe_generator = NaviveProbeGenerator::default();
             sender_clone.run(&mut probe_generator);
         });
         send_threads.push(send_thread);

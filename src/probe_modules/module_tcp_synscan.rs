@@ -20,14 +20,22 @@ pub const PCAP_FILTER: &str = "tcp && tcp[13] & 4 != 0 || tcp[13] == 18";
 pub struct NaviveProbeGenerator {
     source_mac: MacAddress,
     gateway_mac: MacAddress,
+    source_ip: Ipv4Addr,
+    source_port_first: u16,
+    source_port_last: u16,
+    target_port: u16,
     buffer: Vec<u8>,
 }
 
-impl NaviveProbeGenerator {
-    pub fn new() -> Self {
-        Self {
+impl Default for NaviveProbeGenerator {
+    fn default() -> Self {
+        NaviveProbeGenerator {
             source_mac: Default::default(),
             gateway_mac: Default::default(),
+            source_ip: Ipv4Addr::new(0, 0, 0, 0),
+            source_port_first: 0,
+            source_port_last: 0,
+            target_port: 0,
             buffer: Vec::with_capacity(MAX_PACKET_SIZE),
         }
     }
@@ -35,30 +43,38 @@ impl NaviveProbeGenerator {
 
 impl ProbeGenerator for NaviveProbeGenerator {
     // This is a no-op as we build the packet from scratch each time
-    fn thread_initialize(&mut self, source_mac: &MacAddress, gateway_mac: &MacAddress) {
+    fn thread_initialize(
+        &mut self,
+        source_mac: &MacAddress,
+        gateway_mac: &MacAddress,
+        source_ip: &Ipv4Addr,
+        source_port_first: u16,
+        source_port_last: u16,
+        target_port: u16,
+    ) {
         self.source_mac = *source_mac;
         self.gateway_mac = *gateway_mac;
+        self.source_ip = *source_ip;
+        self.source_port_first = source_port_first;
+        self.source_port_last = source_port_last;
+        self.target_port = target_port;
     }
 
     fn make_packet(
         &mut self,
-        source_ip: &Ipv4Addr,
         destination_ip: &Ipv4Addr,
         validation: &[u32],
         probe_num: u32,
-        source_port_first: u16,
-        source_port_last: u16,
-        target_port: u16,
     ) -> &[u8] {
         // Calculate source port
-        let num_ports = (source_port_last - source_port_first + 1) as u32;
-        let src_port = source_port_first + ((validation[1] + probe_num) % num_ports) as u16;
+        let num_ports = (self.source_port_last - self.source_port_first + 1) as u32;
+        let src_port = self.source_port_first + ((validation[1] + probe_num) % num_ports) as u16;
 
         let mut ip_header = make_ip_header(IpNumber::TCP);
-        ip_header.source = source_ip.octets();
+        ip_header.source = self.source_ip.octets();
         ip_header.destination = destination_ip.octets();
 
-        let mut tcp_header = make_tcp_header(target_port);
+        let mut tcp_header = make_tcp_header(self.target_port);
         tcp_header.source_port = src_port;
         tcp_header.sequence_number = validation[0];
 
