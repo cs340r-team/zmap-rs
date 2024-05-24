@@ -17,7 +17,7 @@ use super::{
 pub const PACKET_LENGTH: u64 = 54;
 pub const PCAP_FILTER: &str = "tcp && tcp[13] & 4 != 0 || tcp[13] == 18";
 
-pub struct NaviveProbeGenerator {
+pub struct NaiveProbeGenerator {
     source_mac: MacAddress,
     gateway_mac: MacAddress,
     source_ip: Ipv4Addr,
@@ -27,9 +27,9 @@ pub struct NaviveProbeGenerator {
     buffer: Vec<u8>,
 }
 
-impl Default for NaviveProbeGenerator {
+impl Default for NaiveProbeGenerator {
     fn default() -> Self {
-        NaviveProbeGenerator {
+        NaiveProbeGenerator {
             source_mac: Default::default(),
             gateway_mac: Default::default(),
             source_ip: Ipv4Addr::new(0, 0, 0, 0),
@@ -41,7 +41,8 @@ impl Default for NaviveProbeGenerator {
     }
 }
 
-impl ProbeGenerator for NaviveProbeGenerator {
+/// This is a simple probe generator that serializes the packet each time make_packet is called
+impl ProbeGenerator for NaiveProbeGenerator {
     // This is a no-op as we build the packet from scratch each time
     fn thread_initialize(
         &mut self,
@@ -91,6 +92,19 @@ impl ProbeGenerator for NaviveProbeGenerator {
         &self.buffer
     }
 }
+
+
+struct 
+
+
+
+
+
+
+
+
+
+
 
 // Return false if dst port is outside the expected valid range
 fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
