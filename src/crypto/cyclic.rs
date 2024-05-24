@@ -48,7 +48,7 @@ pub struct Cyclic {
 impl Cyclic {
     pub fn new() -> Self {
         let mut aes = AesRand::new();
-        let current = (aes.get_word() & 0xFFFF) as u64;
+        let current = (aes.get_word() & 0xFFFFFFFF) as u64;
         let mut generator;
         loop {
             generator = find_generator(&mut aes);
