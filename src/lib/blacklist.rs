@@ -1,33 +1,55 @@
 // pub fn blacklist_count_allowed() -> u64 {
 //     return 1u64 << 32;
 // }
-use blocklist::constraint; // change for this project
+use blocklist::constraint;
 use constraint::{Constraint, TreeNode};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::net::Ipv4Addr;
 use std::path::Path;
 
+// fn init(file: &str, name: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
+//     let fp: File = File::open(file)?;
+//     let reader: io::BufReader<File> = io::BufReader::new(fp);
+
+//     for line in reader.lines() {
+//         let line: String = line?;
+//         let line: &str = line.split('#').next().unwrap_or("").trim();
+//         if line.is_empty() {
+//             continue;
+//         }
+//         let mut parts: std::str::Split<char> = line.split('/');
+//         let ip: &str = parts.next().unwrap();
+//         let prefix_len: i32 = parts.next().unwrap_or("32").parse::<i32>().unwrap_or(32);
+//         let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
+//         constraint.set_recurse(
+//             &mut constraint.root,
+//             u32::from(addr).swap_bytes(),
+//             prefix_len,
+//             value,
+//         );
+//     }
+
+//     Ok(())
+// }
 fn init(file: &str, name: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
-    let fp: File = File::open(file)?;
-    let reader: io::BufReader<File> = io::BufReader::new(fp);
+    let fp = File::open(file)?;
+    let reader = io::BufReader::new(fp);
 
     for line in reader.lines() {
-        let line: String = line?;
-        let line: &str = line.split('#').next().unwrap_or("").trim();
+        let line = line?;
+        let line = line.split('#').next().unwrap_or("").trim();
         if line.is_empty() {
             continue;
         }
-        let mut parts: std::str::Split<char> = line.split('/');
-        let ip: &str = parts.next().unwrap();
-        let prefix_len: i32 = parts.next().unwrap_or("32").parse::<i32>().unwrap_or(32);
-        let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
-        constraint.set_recurse(
-            &mut constraint.root,
-            u32::from(addr).swap_bytes(),
-            prefix_len,
-            value,
-        );
+        let mut parts = line.split('/');
+        let ip = parts.next().unwrap();
+        let prefix_len = parts.next().unwrap_or("32").parse::<i32>().unwrap_or(32);
+        let addr = ip.parse::<Ipv4Addr>().unwrap();
+
+        // Borrow the root node separately to avoid multiple mutable borrows
+        let root = &mut constraint.root;
+        constraint.set_recurse(root, u32::from(addr).swap_bytes(), prefix_len, value);
     }
 
     Ok(())
@@ -37,24 +59,34 @@ fn blacklist_is_allowed(constraint: &Constraint, s_addr: u32) -> bool {
     constraint.lookup(s_addr.swap_bytes()) == 1
 }
 
+// fn blacklist_prefix(constraint: &mut Constraint, ip: &str, prefix_len: i32) {
+//     let addr = ip.parse::<Ipv4Addr>().unwrap();
+//     constraint.set_recurse(
+//         &mut constraint.root,
+//         u32::from(addr).swap_bytes(),
+//         prefix_len,
+//         0,
+//     );
+// }
 fn blacklist_prefix(constraint: &mut Constraint, ip: &str, prefix_len: i32) {
-    let addr = ip.parse::<Ipv4Addr>().unwrap();
-    constraint.set_recurse(
-        &mut constraint.root,
-        u32::from(addr).swap_bytes(),
-        prefix_len,
-        0,
-    );
+    let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
+    let root: &mut Box<TreeNode> = &mut constraint.root;
+    constraint.set_recurse(root, u32::from(addr).swap_bytes(), prefix_len, 0);
 }
 
+// fn whitelist_prefix(constraint: &mut Constraint, ip: &str, prefix_len: i32) {
+//     let addr = ip.parse::<Ipv4Addr>().unwrap();
+//     constraint.set_recurse(
+//         &mut constraint.root,
+//         u32::from(addr).swap_bytes(),
+//         prefix_len,
+//         1,
+//     );
+// }
 fn whitelist_prefix(constraint: &mut Constraint, ip: &str, prefix_len: i32) {
-    let addr = ip.parse::<Ipv4Addr>().unwrap();
-    constraint.set_recurse(
-        &mut constraint.root,
-        u32::from(addr).swap_bytes(),
-        prefix_len,
-        1,
-    );
+    let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
+    let root: &mut Box<TreeNode> = &mut constraint.root;
+    constraint.set_recurse(root, u32::from(addr).swap_bytes(), prefix_len, 1);
 }
 
 fn blacklist_count_allowed(constraint: &Constraint) -> u64 {
@@ -99,7 +131,8 @@ fn blacklist_init_from_files(
 fn main() {
     let whitelist_filename: Option<&str> = Some("path/to/whitelist.txt");
     let blacklist_filename: Option<&str> = Some("path/to/blacklist.txt");
-    let mut constraint: Constraint = blacklist_init_from_files(whitelist_filename, blacklist_filename);
+    let mut constraint: Constraint =
+        blacklist_init_from_files(whitelist_filename, blacklist_filename);
 
     let ip: Ipv4Addr = "192.168.1.1".parse::<Ipv4Addr>().unwrap();
     if blacklist_is_allowed(&constraint, u32::from(ip)) {
@@ -117,4 +150,3 @@ fn main() {
         blacklist_count_not_allowed(&constraint)
     );
 }
-
