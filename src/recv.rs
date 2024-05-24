@@ -3,10 +3,10 @@ use std::{cell::RefCell, fs::File, io::Write, net::Ipv4Addr, time::Instant};
 use etherparse::{NetSlice, SlicedPacket, TcpHeaderSlice, TransportSlice};
 use log::debug;
 
+use crate::config::Context;
 use crate::lib::validate;
 use crate::net::pcap::*;
 use crate::probe_modules::module_tcp_synscan::{synscan_classify_packet, synscan_validate_packet};
-use crate::state::Context;
 
 pub struct Receiver {
     ctx: Context,
@@ -19,9 +19,9 @@ impl Receiver {
     const SEEN_IPS_SIZE: usize = 0x4000000;
 
     pub fn new(filter: &str, ctx: Context) -> Self {
-        let pcap = PacketCapture::new(&ctx.config.iface).with_filter(filter);
+        let pcap = PacketCapture::new(&ctx.config.interface).with_filter(filter);
         let seen_ips = RefCell::new(vec![0; Self::SEEN_IPS_SIZE]);
-        let output_file = RefCell::new(File::create(&ctx.config.output_filename).unwrap());
+        let output_file = RefCell::new(File::create(&ctx.config.output_file).unwrap());
         Self {
             ctx,
             pcap,

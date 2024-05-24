@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use log::{info, warn};
 
-use crate::state::Context;
+use crate::config::Context;
 
 pub struct Monitor {
     ctx: Context,
@@ -70,7 +70,7 @@ impl Monitor {
         );
         let percent_complete = 100.0 * (age_f64 / (age_f64 + remaining_secs.as_secs_f64()));
 
-        let send_rate = ((zsend_sent - self.last_sent) as f64 / delta_f64);
+        let send_rate = (zsend_sent - self.last_sent) as f64 / delta_f64;
         let send_avg = (zsend_sent as f64) / age_f64;
         let recv_rate = (zrecv_success_unique - self.last_rcvd) as f64 / delta_f64;
         let recv_avg = (zrecv_success_unique as f64) / age_f64;
@@ -113,7 +113,7 @@ impl Monitor {
                 ((zrecv_success_unique as f64) * 100.0) / (zsend_sent as f64),
             );
         } else {
-            let send_avg = (zsend_sent as f64 / (zsend_finish - zsend_start).as_secs_f64());
+            let send_avg = zsend_sent as f64 / (zsend_finish - zsend_start).as_secs_f64();
             info!(
                 "{:.0?} {:.2}% ({:.0?}); send: {} done ({:.0} p/s avg); recv {} {:.0} p/s ({:.0} p/s avg); drops {:.0} p/s ({:.0} p/s avg); hits: {:.2}%",
                 age,

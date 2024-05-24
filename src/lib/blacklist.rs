@@ -37,7 +37,7 @@ impl Blacklist {
     const ADDR_DISALLOWED: i32 = 0;
     const ADDR_ALLOWED: i32 = 1;
 
-    pub fn new(whitelist_filename: Option<&str>, blacklist_filename: Option<&str>) -> Self {
+    pub fn new(whitelist_filename: Option<String>, blacklist_filename: Option<String>) -> Self {
         let mut constraint = if whitelist_filename.is_some() {
             let root = Box::new(TreeNode::new(0));
             Constraint::new(root)
@@ -47,11 +47,11 @@ impl Blacklist {
         };
 
         if let Some(filename) = whitelist_filename {
-            init(filename, Blacklist::ADDR_ALLOWED, &mut constraint).unwrap();
+            init(&filename, Blacklist::ADDR_ALLOWED, &mut constraint).unwrap();
         }
 
         if let Some(filename) = blacklist_filename {
-            init(filename, Blacklist::ADDR_DISALLOWED, &mut constraint).unwrap();
+            init(&filename, Blacklist::ADDR_DISALLOWED, &mut constraint).unwrap();
         }
 
         constraint.optimize();

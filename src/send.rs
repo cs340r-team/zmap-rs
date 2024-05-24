@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use log::{debug, info, warn};
 
+use crate::config::Context;
 use crate::crypto::Cyclic;
 use crate::lib::blacklist::Blacklist;
 use crate::lib::validate;
@@ -10,7 +11,6 @@ use crate::net::{get_interface_index, get_interface_mac};
 use crate::probe_modules::module_tcp_synscan::{
     synscan_init_perthread, synscan_make_packet, synscan_print_packet,
 };
-use crate::state::Context;
 
 #[derive(Clone)]
 pub struct Sender {
@@ -73,8 +73,8 @@ impl Sender {
         let zsend = self.ctx.sender_state.lock().unwrap();
 
         let socket = RawEthSocket::new();
-        let interface_index = get_interface_index(&self.ctx.config.iface).unwrap();
-        let source_mac = get_interface_mac(&self.ctx.config.iface).unwrap();
+        let interface_index = get_interface_index(&self.ctx.config.interface).unwrap();
+        let source_mac = get_interface_mac(&self.ctx.config.interface).unwrap();
         let gateway_mac = self.ctx.config.gw_mac;
 
         // We don't currently cache packets, so this is a no-op
@@ -95,9 +95,10 @@ impl Sender {
             }
 
             let duration = (Instant::now() - last_time).as_secs_f64();
-            delay *=
-                ((1.0 / duration) / (self.ctx.config.rate / self.ctx.config.senders) as f64) as u32;
-            interval = (self.ctx.config.rate / self.ctx.config.senders) / 20;
+            delay *= ((1.0 / duration)
+                / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64)
+                as u32;
+            interval = (self.ctx.config.rate / self.ctx.config.sender_threads) / 20;
             last_time = Instant::now();
         }
 
@@ -113,7 +114,7 @@ impl Sender {
                     let duration = (t - last_time).as_secs_f64();
                     delay *= ((count - last_count) as f64
                         / duration
-                        / (self.ctx.config.rate / self.ctx.config.senders) as f64)
+                        / (self.ctx.config.rate / self.ctx.config.sender_threads) as f64)
                         as u32;
                     if delay < 1 {
                         delay = 1;
@@ -158,7 +159,7 @@ impl Sender {
             zsend.sent += 1;
             drop(zsend);
 
-            for i in 0..self.ctx.config.packet_streams {
+            for i in 0..self.ctx.config.probes {
                 let source_ip = self.ctx.config.source_ip_first;
                 let validation = validate::gen(&self.ctx.validate_ctx, &source_ip, &destination_ip);
                 let validation = [
@@ -177,7 +178,9 @@ impl Sender {
                 );
 
                 if self.ctx.config.dryrun {
-                    synscan_print_packet(&packet);
+                    if !self.ctx.config.quiet {
+                        synscan_print_packet(&packet);
+                    }
                 } else {
                     let res = socket.sendto(&packet, interface_index, &gateway_mac);
                     if let Err(e) = res {

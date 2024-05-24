@@ -7,7 +7,7 @@ use etherparse::{
 use eui48::MacAddress;
 use log::debug;
 
-use crate::{probe_modules::packet::make_tcp_header, state::Config};
+use crate::{config::Config, probe_modules::packet::make_tcp_header};
 
 use super::packet::{make_ip_header, MAX_PACKET_SIZE};
 
@@ -182,7 +182,7 @@ pub fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
     let num_ports = (config.source_port_last - config.source_port_first + 1) as u32;
     let to_validate = (port - config.source_port_first) as u32;
     let min = validation[1] % num_ports;
-    let max = (validation[1] + config.packet_streams - 1) % num_ports;
+    let max = (validation[1] + config.probes - 1) % num_ports;
 
     return ((max - min) % num_ports) >= ((to_validate - min) % num_ports);
 }

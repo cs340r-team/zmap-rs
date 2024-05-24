@@ -2,6 +2,7 @@ pub mod pcap;
 pub mod socket;
 
 use std::{
+    error::Error,
     fs,
     net::{AddrParseError, Ipv4Addr},
     num::ParseIntError,
@@ -10,6 +11,16 @@ use std::{
 };
 
 use eui48::{MacAddress, ParseError};
+
+pub fn get_default_interface() -> Result<String, ()> {
+    let cmd = Command::new("sh")
+        .arg("-c")
+        .arg(format!("ip route show | grep default | awk '{{print $5}}'"))
+        .output()
+        .expect(&format!("Could not obtain default interface name"));
+    let ifname = std::str::from_utf8(&cmd.stdout).unwrap().trim();
+    Ok(ifname.into())
+}
 
 pub fn get_interface_index(ifname: &str) -> Result<i32, ParseIntError> {
     let path = format!("/sys/class/net/{}/ifindex", ifname);
