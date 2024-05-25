@@ -1,5 +1,4 @@
-use core::panic;
-use std::{cell::RefCell, ops::Index, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use log::debug;
 
@@ -34,7 +33,6 @@ impl TreeNode {
     }
 }
 
-#[derive(Clone)]
 pub struct Constraint {
     pub root: TreeNodeRef,
     pub radix: Vec<TreeNodeRef>,
@@ -141,29 +139,29 @@ pub fn set_recurse(node: &TreeNodeRef, prefix: u32, len: i32, value: i32) {
         node_borrow_mut.right = Some(Rc::new(RefCell::new(TreeNode::new(node_value))));
     }
 
-    let node_borrow = node.borrow();
-
     if prefix & (1 << 31) != 0 {
         set_recurse(
-            node_borrow.right.as_ref().unwrap(),
+            node.borrow().right.as_ref().unwrap(),
             prefix << 1,
             len - 1,
             value,
         );
     } else {
         set_recurse(
-            node_borrow.left.as_ref().unwrap(),
+            node.borrow().left.as_ref().unwrap(),
             prefix << 1,
             len - 1,
             value,
         );
     }
 
-    let left = node_borrow.left.as_ref().unwrap().borrow();
-    let right = node_borrow.right.as_ref().unwrap().borrow();
-    if left.is_leaf() && right.is_leaf() && left.val == right.val {
+    let left_val = node.borrow().left.as_ref().unwrap().borrow().val;
+    let right_val = node.borrow().right.as_ref().unwrap().borrow().val;
+    let left_leaf = node.borrow().left.as_ref().unwrap().borrow().is_leaf();
+    let right_leaf = node.borrow().right.as_ref().unwrap().borrow().is_leaf();
+    if left_leaf && right_leaf && left_val == right_val {
         let mut node_borrow_mut = node.borrow_mut();
-        node_borrow_mut.val = left.val;
+        node_borrow_mut.val = left_val;
         node_borrow_mut.convert_to_leaf();
     }
 }

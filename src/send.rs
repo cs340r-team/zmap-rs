@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use log::{debug, info, warn};
@@ -11,25 +13,31 @@ use crate::net::{get_interface_index, get_interface_mac};
 use crate::probe_modules::module_tcp_synscan::synscan_print_packet;
 use crate::probe_modules::probe_modules::ProbeGenerator;
 
-#[derive(Clone)]
 pub struct Sender {
     ctx: Context,
-    cyclic: Cyclic,
+    cyclic: Arc<Mutex<Cyclic>>,
     blacklist: Blacklist,
 }
 
 impl Sender {
-    pub fn new(ctx: Context, blacklist: Blacklist) -> Self {
-        // Create a generator and starting position
-        let mut cyclic = Cyclic::new();
-
+    pub fn new(ctx: Context, cyclic: Arc<Mutex<Cyclic>>, blacklist: Blacklist) -> Self {
         let mut zsend = ctx.sender_state.lock().unwrap();
 
+        // If we've already initialized the senders, just return
+        if zsend.first_scanned != Ipv4Addr::new(0, 0, 0, 0) {
+            drop(zsend);
+            return Self {
+                ctx,
+                cyclic,
+                blacklist,
+            };
+        }
+
         // Advance past any blacklisted addresses
-        zsend.first_scanned = cyclic.current_ip();
+        zsend.first_scanned = cyclic.lock().unwrap().current_ip();
         while !blacklist.is_allowed(zsend.first_scanned) {
             zsend.blacklisted += 1;
-            zsend.first_scanned = cyclic.next_ip();
+            zsend.first_scanned = cyclic.lock().unwrap().next_ip();
         }
 
         let allowed = blacklist.count_allowed();
@@ -151,9 +159,9 @@ impl Sender {
                 break;
             }
 
-            let mut destination_ip = self.cyclic.next_ip();
+            let mut destination_ip = self.cyclic.lock().unwrap().next_ip();
             while !self.blacklist.is_allowed(destination_ip) {
-                destination_ip = self.cyclic.next_ip();
+                destination_ip = self.cyclic.lock().unwrap().next_ip();
                 zsend.blacklisted += 1;
             }
 

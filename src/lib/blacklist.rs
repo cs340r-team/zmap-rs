@@ -30,7 +30,6 @@ fn init(file: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
     Ok(())
 }
 
-#[derive(Clone)]
 pub struct Blacklist {
     constraint: Constraint,
 }

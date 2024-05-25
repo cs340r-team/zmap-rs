@@ -1,10 +1,12 @@
 #![allow(
-    unused,
+    // unused,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
     special_module_name
 )]
+
+use std::sync::{Arc, Mutex};
 
 use affinity::{get_core_num, set_thread_affinity};
 use lib::blacklist::Blacklist;
@@ -14,7 +16,9 @@ use probe_modules::module_tcp_synscan::PCAP_FILTER;
 use recv::Receiver;
 use send::Sender;
 
-use crate::{config::create_context, probe_modules::module_tcp_synscan::NaiveProbeGenerator};
+use crate::{
+    config::create_context, crypto::Cyclic, probe_modules::module_tcp_synscan::NaiveProbeGenerator,
+};
 
 mod config;
 mod crypto;
@@ -33,10 +37,6 @@ fn main() {
         .init();
 
     let ctx = create_context();
-    let blacklist = Blacklist::new(
-        ctx.config.whitelist_file.clone(),
-        ctx.config.blacklist_file.clone(),
-    );
 
     let num_cores = get_core_num();
 
@@ -47,6 +47,7 @@ fn main() {
         let receiver = Receiver::new(PCAP_FILTER, ctx_clone);
         receiver.run();
     });
+
     loop {
         if ctx.receiver_state.lock().unwrap().ready {
             debug!("Receiver thread ready");
@@ -55,17 +56,26 @@ fn main() {
     }
 
     // Create sender threads
-    let ctx_clone = ctx.clone();
-    let sender = Sender::new(ctx_clone, blacklist);
     let mut send_threads = vec![];
     let mut core = 1;
+    let cyclic = Arc::new(Mutex::new(Cyclic::new()));
     for _ in 0..ctx.config.sender_threads {
-        let mut sender_clone = sender.clone();
+        let ctx = ctx.clone();
+        let cyclic = cyclic.clone();
+
         let send_thread = std::thread::spawn(move || {
             set_thread_affinity([core % num_cores]).unwrap();
+
+            let blacklist = Blacklist::new(
+                ctx.config.whitelist_file.clone(),
+                ctx.config.blacklist_file.clone(),
+            );
+
             let mut probe_generator = NaiveProbeGenerator::default();
-            sender_clone.run(&mut probe_generator);
+            let mut sender = Sender::new(ctx, cyclic, blacklist);
+            sender.run(&mut probe_generator);
         });
+
         send_threads.push(send_thread);
         core += 1;
     }
