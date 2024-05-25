@@ -72,10 +72,8 @@ fn main() {
                 ctx.config.blacklist_file.clone(),
             );
 
-            // let mut probe_generator = NaiveProbeGenerator::default();
             let mut sender = Sender::new(ctx, cyclic, blacklist);
-            let mut probe_generator = PrecomputedProbeGenerator::default();
-            sender.run(&mut probe_generator);
+            sender.run();
         });
 
         send_threads.push(send_thread);

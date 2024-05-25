@@ -10,8 +10,10 @@ use crate::lib::blacklist::Blacklist;
 use crate::lib::validate;
 use crate::net::socket::RawEthSocket;
 use crate::net::{get_interface_index, get_interface_mac};
-use crate::probe_modules::module_tcp_synscan::synscan_print_packet;
-use crate::probe_modules::probe_modules::ProbeGenerator;
+use crate::probe_modules::module_tcp_synscan::{
+    synscan_print_packet, NaiveProbeGenerator, PrecomputedProbeGenerator,
+};
+use crate::probe_modules::probe_modules::{self, ProbeGenerator};
 
 pub struct Sender {
     ctx: Context,
@@ -75,9 +77,17 @@ impl Sender {
         }
     }
 
-    pub fn run(&mut self, probe_module: &mut dyn ProbeGenerator) {
+    pub fn run(&mut self) {
         debug!("Sender thread started and running");
         let zsend = self.ctx.sender_state.lock().unwrap();
+
+        let mut probe_module: Box<dyn ProbeGenerator> = if self.ctx.config.naive_probes {
+            debug!("Using naive probe generator");
+            Box::new(NaiveProbeGenerator::default())
+        } else {
+            debug!("Using optimized probe generator");
+            Box::new(PrecomputedProbeGenerator::default())
+        };
 
         let socket = RawEthSocket::new();
         let interface_index = get_interface_index(&self.ctx.config.interface).unwrap();

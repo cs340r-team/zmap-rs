@@ -63,7 +63,7 @@ pub struct Config {
     pub max_targets: u32,
 
     /// Cap number of results to return
-    #[arg(short = 'N', long, default_value_t = u32::MAX)]
+    #[arg(short = 'R', long, default_value_t = u32::MAX)]
     pub max_results: u32,
 
     /// Cap length of time for sending packets
@@ -125,6 +125,10 @@ pub struct Config {
     /// In dryrun mode, suppress printing packets on send
     #[arg(short, long)]
     pub quiet: bool,
+
+    /// Whether to use naive probe generator
+    #[arg(short = 'N', long)]
+    pub naive_probes: bool,
 }
 
 #[derive(Clone, Debug)]
