@@ -1,9 +1,11 @@
 use log::debug;
 
 use super::constraint::{set_recurse, Constraint, TreeNode};
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::net::Ipv4Addr;
+use std::rc::Rc;
 
 fn init(file: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
     let fp: File = File::open(file)?;
@@ -21,7 +23,7 @@ fn init(file: &str, value: i32, constraint: &mut Constraint) -> io::Result<()> {
         let addr: Ipv4Addr = ip.parse::<Ipv4Addr>().unwrap();
 
         // Borrow the root node separately to avoid multiple mutable borrows
-        let root: &mut Box<TreeNode> = &mut constraint.root;
+        let root = &mut constraint.root;
         set_recurse(root, u32::from(addr), prefix_len, value);
     }
 
@@ -39,10 +41,10 @@ impl Blacklist {
 
     pub fn new(whitelist_filename: Option<String>, blacklist_filename: Option<String>) -> Self {
         let mut constraint = if whitelist_filename.is_some() {
-            let root = Box::new(TreeNode::new(0));
+            let root = Rc::new(RefCell::new(TreeNode::new(0)));
             Constraint::new(root)
         } else {
-            let root = Box::new(TreeNode::new(1));
+            let root = Rc::new(RefCell::new(TreeNode::new(1)));
             Constraint::new(root)
         };
 

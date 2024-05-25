@@ -14,7 +14,7 @@ use probe_modules::module_tcp_synscan::PCAP_FILTER;
 use recv::Receiver;
 use send::Sender;
 
-use crate::{config::create_context, probe_modules::module_tcp_synscan::NaviveProbeGenerator};
+use crate::{config::create_context, probe_modules::module_tcp_synscan::NaiveProbeGenerator};
 
 mod config;
 mod crypto;
@@ -63,7 +63,7 @@ fn main() {
         let mut sender_clone = sender.clone();
         let send_thread = std::thread::spawn(move || {
             set_thread_affinity([core % num_cores]).unwrap();
-            let mut probe_generator = NaviveProbeGenerator::default();
+            let mut probe_generator = NaiveProbeGenerator::default();
             sender_clone.run(&mut probe_generator);
         });
         send_threads.push(send_thread);
