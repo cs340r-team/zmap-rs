@@ -1,5 +1,5 @@
 #![allow(
-    // unused,
+    unused,
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
@@ -18,6 +18,7 @@ use send::Sender;
 
 use crate::{
     config::create_context, crypto::Cyclic, probe_modules::module_tcp_synscan::NaiveProbeGenerator,
+    probe_modules::module_tcp_synscan::PrecomputedProbeGenerator,
 };
 
 mod config;
@@ -72,6 +73,8 @@ fn main() {
             );
 
             let mut probe_generator = NaiveProbeGenerator::default();
+            // let mut probe_generator = PrecomputedProbeGenerator::default();
+
             let mut sender = Sender::new(ctx, cyclic, blacklist);
             sender.run(&mut probe_generator);
         });

@@ -1,16 +1,19 @@
 use std::net::Ipv4Addr;
 
 use etherparse::{
-    IpHeaders, IpNumber, LinkSlice, NetSlice, PacketBuilder, SlicedPacket, TcpHeaderSlice,
-    TransportSlice,
+    EtherType, Ethernet2Header, IpHeaders, IpNumber, Ipv4Header, LinkSlice, NetSlice,
+    PacketBuilder, SlicedPacket, TcpHeaderSlice, TransportSlice,
 };
 use eui48::MacAddress;
 use log::debug;
 
-use crate::{config::Config, probe_modules::packet::make_tcp_header};
+use crate::{
+    config::Config,
+    probe_modules::packet::{ip_checksum, make_tcp_header},
+};
 
 use super::{
-    packet::{make_ip_header, MAX_PACKET_SIZE},
+    packet::{make_ip_header, tcp_checksum, MAX_PACKET_SIZE},
     probe_modules::ProbeGenerator,
 };
 
@@ -93,18 +96,95 @@ impl ProbeGenerator for NaiveProbeGenerator {
     }
 }
 
+/// This is a precomputed probe generator that sets up most of the packet in advance as there are fields
+/// that do not change between probes.
+///
+/// The only fields that need to be set in make_packet are the IPv4 header checksum and destination
+/// address, and the TCP source port, sequence number, and checksum.
+pub struct PrecomputedProbeGenerator {
+    source_ip: Ipv4Addr,
+    source_port_first: u16,
+    source_port_last: u16,
+    target_port: u16,
+    buffer: Vec<u8>,
+}
 
-// struct 
+impl Default for PrecomputedProbeGenerator {
+    fn default() -> Self {
+        PrecomputedProbeGenerator {
+            source_ip: Ipv4Addr::new(0, 0, 0, 0),
+            source_port_first: 0,
+            source_port_last: 0,
+            target_port: 0,
+            buffer: Vec::with_capacity(MAX_PACKET_SIZE),
+        }
+    }
+}
 
+impl ProbeGenerator for PrecomputedProbeGenerator {
+    fn thread_initialize(
+        &mut self,
+        source_mac: &MacAddress,
+        gateway_mac: &MacAddress,
+        source_ip: &Ipv4Addr,
+        source_port_first: u16,
+        source_port_last: u16,
+        target_port: u16,
+    ) {
+        self.source_ip = *source_ip;
 
+        Ethernet2Header {
+            destination: gateway_mac.to_array(),
+            source: source_mac.to_array(),
+            ether_type: EtherType::IPV4,
+        }
+        .write(&mut self.buffer)
+        .unwrap();
 
+        let mut ip_header = make_ip_header(IpNumber::TCP);
+        ip_header.source = source_ip.octets();
+        ip_header.total_len = 40; // 14 Ethernet header + 20 IP header + 20 TCP header
+        ip_header.write_raw(&mut self.buffer).unwrap();
 
+        let tcp_header = make_tcp_header(target_port);
+        tcp_header.write(&mut self.buffer).unwrap();
+    }
 
+    // We just need to the IP header checksum, destination address, and TCP source port, sequence number, and checksum
+    fn make_packet(
+        &mut self,
+        destination_ip: &Ipv4Addr,
+        validation: &[u32],
+        probe_num: u32,
+    ) -> &[u8] {
+        // Set the destination IP address
+        self.buffer[30..34].copy_from_slice(&destination_ip.octets());
 
+        // Calculate and set source port
+        let num_ports = (self.source_port_last - self.source_port_first + 1) as u32;
+        let src_port = self.source_port_first + ((validation[1] + probe_num) % num_ports) as u16;
+        self.buffer[34..36].copy_from_slice(&src_port.to_be_bytes());
 
+        // Set the sequence number
+        self.buffer[38..42].copy_from_slice(&validation[0].to_be_bytes());
 
+        // Calculate and set IP header checksum
+        let ip_checksum = ip_checksum(&self.buffer[14..34]);
+        self.buffer[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
 
+        // Calculate and set TCP checksum
+        let tcp_checksum = tcp_checksum(
+            &self.buffer[34..],
+            20,
+            self.source_ip.into(),
+            (*destination_ip).into(),
+        );
+        self.buffer[50..52].copy_from_slice(&tcp_checksum.to_be_bytes());
 
+        // debug!("Sent packet: {:?} {}", self.buffer, destination_ip);
+        &self.buffer
+    }
+}
 
 // Return false if dst port is outside the expected valid range
 fn check_dst_port(port: u16, validation: &[u32], config: &Config) -> bool {
