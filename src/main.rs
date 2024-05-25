@@ -16,10 +16,10 @@ use probe_modules::module_tcp_synscan::PCAP_FILTER;
 use recv::Receiver;
 use send::Sender;
 
-use crate::{
-    config::create_context, crypto::Cyclic, probe_modules::module_tcp_synscan::NaiveProbeGenerator,
-    probe_modules::module_tcp_synscan::PrecomputedProbeGenerator,
-};
+use crate::config::create_context;
+use crate::crypto::Cyclic;
+use crate::probe_modules::module_tcp_synscan::NaiveProbeGenerator;
+use crate::probe_modules::module_tcp_synscan::PrecomputedProbeGenerator;
 
 mod config;
 mod crypto;
@@ -72,10 +72,9 @@ fn main() {
                 ctx.config.blacklist_file.clone(),
             );
 
-            let mut probe_generator = NaiveProbeGenerator::default();
-            // let mut probe_generator = PrecomputedProbeGenerator::default();
-
+            // let mut probe_generator = NaiveProbeGenerator::default();
             let mut sender = Sender::new(ctx, cyclic, blacklist);
+            let mut probe_generator = PrecomputedProbeGenerator::default();
             sender.run(&mut probe_generator);
         });
 

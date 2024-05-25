@@ -1,11 +1,8 @@
 use etherparse::{
     EtherType, Ethernet2Header, IpFragOffset, IpNumber, Ipv4Dscp, Ipv4Header, TcpHeader,
 };
-use libc::MAXTTL;
-use num::traits::ToBytes;
-use rand::random;
-
 use eui48::MacAddress;
+use libc::MAXTTL;
 
 pub const MAX_PACKET_SIZE: usize = 4096;
 
@@ -56,15 +53,14 @@ pub fn ip_checksum(ip_header: &[u8]) -> u16 {
     return !sum as u16;
 }
 
-// TODO: fix
 pub fn tcp_checksum(tcp_header: &[u8], tcp_len: u16, src_ip: u32, dst_ip: u32) -> u16 {
     let mut sum = 0u64;
 
     // Pseudo header
     sum += (src_ip >> 16) as u64 + (src_ip & 0xFFFF) as u64;
     sum += (dst_ip >> 16) as u64 + (dst_ip & 0xFFFF) as u64;
-    sum += tcp_len.to_be() as u64;
-    sum += 6u16.to_be() as u64;
+    sum += tcp_len as u64;
+    sum += 6u16 as u64;
 
     for i in (0..tcp_header.len()).step_by(2) {
         sum += u16::from_be_bytes([tcp_header[i], tcp_header[i + 1]]) as u64;
@@ -79,31 +75,29 @@ pub fn tcp_checksum(tcp_header: &[u8], tcp_len: u16, src_ip: u32, dst_ip: u32) -
 
 #[cfg(test)]
 mod tests {
-    use etherparse::{IpHeaders, PacketBuilder};
+    use etherparse::{IpHeaders, PacketBuilder, TcpOptions};
 
     use super::*;
     use crate::config::Config;
 
+    const MAC_SRC: [u8; 6] = [0xaa, 0x41, 0x72, 0x51, 0x54, 0x42];
+    const MAC_DEST: [u8; 6] = [0xf6, 0xd4, 0x88, 0x07, 0x37, 0x64];
+    const IP_SRC: [u8; 4] = [192, 168, 68, 3];
+    const IP_DEST: [u8; 4] = [46, 216, 152, 50];
+
     #[test]
     fn test_ip_checksum() {
         let mut ip_header = make_ip_header(IpNumber::TCP);
-        ip_header.source = [192, 168, 1, 1];
-        ip_header.destination = [192, 168, 1, 2];
+        ip_header.source = IP_SRC;
+        ip_header.destination = IP_DEST;
 
         let mut tcp_header = make_tcp_header(443);
-        tcp_header.source_port = 12345;
-        tcp_header.sequence_number = 42;
+        tcp_header.source_port = 47782;
+        tcp_header.sequence_number = 2324566490;
 
-        let builder = PacketBuilder::ethernet2(
-            MacAddress::parse_str("3a:0b:a9:3c:0d:3e")
-                .unwrap()
-                .to_array(),
-            MacAddress::parse_str("f4:c2:0a:99:23:6d")
-                .unwrap()
-                .to_array(),
-        )
-        .ip(IpHeaders::Ipv4(ip_header, Default::default()))
-        .tcp_header(tcp_header);
+        let builder = PacketBuilder::ethernet2(MAC_SRC, MAC_DEST)
+            .ip(IpHeaders::Ipv4(ip_header, Default::default()))
+            .tcp_header(tcp_header);
 
         let mut result = Vec::<u8>::with_capacity(builder.size(0));
         builder.write(&mut result, &[]).unwrap();
@@ -118,37 +112,31 @@ mod tests {
     #[test]
     fn test_tcp_checksum() {
         let mut ip_header = make_ip_header(IpNumber::TCP);
-        ip_header.source = [192, 168, 1, 1];
-        ip_header.destination = [192, 168, 1, 2];
+        ip_header.source = IP_SRC;
+        ip_header.destination = IP_DEST;
 
         let mut tcp_header = make_tcp_header(443);
-        tcp_header.source_port = 12345;
-        tcp_header.sequence_number = 42;
+        tcp_header.source_port = 47782;
+        tcp_header.sequence_number = 2324566490;
 
-        let builder = PacketBuilder::ethernet2(
-            MacAddress::parse_str("3a:0b:a9:3c:0d:3e")
-                .unwrap()
-                .to_array(),
-            MacAddress::parse_str("f4:c2:0a:99:23:6d")
-                .unwrap()
-                .to_array(),
-        )
-        .ip(IpHeaders::Ipv4(ip_header, Default::default()))
-        .tcp_header(tcp_header);
+        let builder = PacketBuilder::ethernet2(MAC_SRC, MAC_DEST)
+            .ip(IpHeaders::Ipv4(ip_header, Default::default()))
+            .tcp_header(tcp_header);
 
         let mut result = Vec::<u8>::with_capacity(builder.size(0));
         builder.write(&mut result, &[]).unwrap();
 
-        println!("{:?}", result);
-
         let expected_checksum = u16::from_be_bytes([result[50], result[51]]);
+        println!("{:x?}", expected_checksum);
         let tcp_header_without_checksum = &result[34..50];
         let actual_checksum = tcp_checksum(
             tcp_header_without_checksum,
             20,
-            u32::from_be_bytes([192, 168, 1, 1]),
-            u32::from_be_bytes([192, 168, 1, 2]),
+            u32::from_be_bytes(IP_SRC),
+            u32::from_be_bytes(IP_DEST),
         );
+
+        println!("{:?}", result);
 
         assert_eq!(expected_checksum, actual_checksum);
     }

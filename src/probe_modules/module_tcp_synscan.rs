@@ -1,21 +1,17 @@
 use std::net::Ipv4Addr;
 
 use etherparse::{
-    EtherType, Ethernet2Header, IpHeaders, IpNumber, Ipv4Header, LinkSlice, NetSlice,
-    PacketBuilder, SlicedPacket, TcpHeaderSlice, TransportSlice,
+    IpHeaders, IpNumber, LinkSlice, NetSlice, PacketBuilder, SlicedPacket, TcpHeaderSlice,
+    TransportSlice,
 };
 use eui48::MacAddress;
 use log::debug;
 
-use crate::{
-    config::Config,
-    probe_modules::packet::{ip_checksum, make_tcp_header},
+use crate::config::Config;
+use crate::probe_modules::packet::{
+    ip_checksum, make_eth_header, make_ip_header, make_tcp_header, tcp_checksum, MAX_PACKET_SIZE,
 };
-
-use super::{
-    packet::{make_ip_header, tcp_checksum, MAX_PACKET_SIZE},
-    probe_modules::ProbeGenerator,
-};
+use crate::probe_modules::probe_modules::ProbeGenerator;
 
 pub const PACKET_LENGTH: u64 = 54;
 pub const PCAP_FILTER: &str = "tcp && tcp[13] & 4 != 0 || tcp[13] == 18";
@@ -132,14 +128,13 @@ impl ProbeGenerator for PrecomputedProbeGenerator {
         target_port: u16,
     ) {
         self.source_ip = *source_ip;
+        self.source_port_first = source_port_first;
+        self.source_port_last = source_port_last;
+        self.target_port = target_port;
 
-        Ethernet2Header {
-            destination: gateway_mac.to_array(),
-            source: source_mac.to_array(),
-            ether_type: EtherType::IPV4,
-        }
-        .write(&mut self.buffer)
-        .unwrap();
+        make_eth_header(source_mac, gateway_mac)
+            .write(&mut self.buffer)
+            .unwrap();
 
         let mut ip_header = make_ip_header(IpNumber::TCP);
         ip_header.source = source_ip.octets();
@@ -169,10 +164,12 @@ impl ProbeGenerator for PrecomputedProbeGenerator {
         self.buffer[38..42].copy_from_slice(&validation[0].to_be_bytes());
 
         // Calculate and set IP header checksum
+        self.buffer[24..26].copy_from_slice(&0u16.to_be_bytes()); // Zero out
         let ip_checksum = ip_checksum(&self.buffer[14..34]);
         self.buffer[24..26].copy_from_slice(&ip_checksum.to_be_bytes());
 
         // Calculate and set TCP checksum
+        self.buffer[50..52].copy_from_slice(&0u16.to_be_bytes()); // Zero out
         let tcp_checksum = tcp_checksum(
             &self.buffer[34..],
             20,
@@ -180,8 +177,6 @@ impl ProbeGenerator for PrecomputedProbeGenerator {
             (*destination_ip).into(),
         );
         self.buffer[50..52].copy_from_slice(&tcp_checksum.to_be_bytes());
-
-        // debug!("Sent packet: {:?} {}", self.buffer, destination_ip);
         &self.buffer
     }
 }
