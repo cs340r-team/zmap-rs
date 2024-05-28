@@ -39,6 +39,22 @@ fn parse_bandwidth(arg: &str) -> Result<u64, ParseIntError> {
     Ok(bandwidth)
 }
 
+fn parse_max_targets(arg: &str) -> Result<u32, ParseIntError> {
+    let max_targets: u32 = arg.split_at(arg.len() - 1).0.parse()?;
+    if max_targets > 100 {
+        warn!("Max targets should be a percentage (0-100), setting to 100");
+        return Ok(100);
+    }
+
+    let targets = (max_targets as f64) * (1u64 << 32) as f64 / 100.0;
+    if targets > (u32::MAX as f64) {
+        return Ok(100);
+    }
+
+    debug!("Max targets set to {}", targets as u32);
+    Ok(targets as u32)
+}
+
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
 pub struct Config {
@@ -58,8 +74,8 @@ pub struct Config {
     #[arg(short, long)]
     pub whitelist_file: Option<String>,
 
-    /// Cap number of targets to probe
-    #[arg(short = 'n', long, default_value_t = u32::MAX)]
+    /// Cap number of targets to probe as a percentage of the address space
+    #[arg(short = 'n', long, value_parser = parse_max_targets, default_value_t = 100)]
     pub max_targets: u32,
 
     /// Cap number of results to return

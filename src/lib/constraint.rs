@@ -101,21 +101,34 @@ impl Constraint {
 
         for i in 0..(1u64 << Constraint::RADIX_LENGTH) {
             let prefix = i << (32 - Constraint::RADIX_LENGTH);
-            let node = self.lookup_node(&self.root, prefix as u32);
+            let node = self.lookup_node(&self.root, prefix as u32, Constraint::RADIX_LENGTH as i32);
             self.radix.push(node.clone());
         }
     }
 
-    pub fn lookup_node(&self, node: &TreeNodeRef, addr: u32) -> TreeNodeRef {
+    pub fn lookup_node(&self, node: &TreeNodeRef, addr: u32, prefix_len: i32) -> TreeNodeRef {
         if node.borrow().is_leaf() {
             return node.clone();
         }
 
-        if addr & (1 << 31) != 0 {
-            return self.lookup_node(node.borrow().right.as_ref().unwrap(), addr << 1);
+        // We've reached an internal node
+        if prefix_len == 32 {
+            return node.clone();
         }
 
-        return self.lookup_node(node.borrow().left.as_ref().unwrap(), addr << 1);
+        if addr & (1 << 31) != 0 {
+            return self.lookup_node(
+                node.borrow().right.as_ref().unwrap(),
+                addr << 1,
+                prefix_len + 1,
+            );
+        }
+
+        return self.lookup_node(
+            node.borrow().left.as_ref().unwrap(),
+            addr << 1,
+            prefix_len + 1,
+        );
     }
 }
 
