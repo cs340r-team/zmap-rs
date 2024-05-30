@@ -1,6 +1,6 @@
 use std::{
     net::Ipv4Addr,
-    num::ParseIntError,
+    num::{ParseFloatError, ParseIntError},
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -39,16 +39,16 @@ fn parse_bandwidth(arg: &str) -> Result<u64, ParseIntError> {
     Ok(bandwidth)
 }
 
-fn parse_max_targets(arg: &str) -> Result<u32, ParseIntError> {
-    let max_targets: u32 = arg.split_at(arg.len() - 1).0.parse()?;
-    if max_targets > 100 {
-        warn!("Max targets should be a percentage (0-100), setting to 100");
-        return Ok(100);
+fn parse_max_targets(arg: &str) -> Result<u32, ParseFloatError> {
+    let max_targets: f64 = arg.split_at(arg.len() - 1).0.parse()?;
+    if max_targets > 100.0 {
+        warn!("Max targets should be a percentage (0-100), setting to 100%");
+        return Ok(u32::MAX);
     }
 
-    let targets = (max_targets as f64) * (1u64 << 32) as f64 / 100.0;
+    let targets = (max_targets / 100.0) * (1u64 << 32) as f64;
     if targets > (u32::MAX as f64) {
-        return Ok(100);
+        return Ok(u32::MAX);
     }
 
     debug!("Max targets set to {}", targets as u32);
@@ -75,7 +75,7 @@ pub struct Config {
     pub whitelist_file: Option<String>,
 
     /// Cap number of targets to probe as a percentage of the address space
-    #[arg(short = 'n', long, value_parser = parse_max_targets, default_value_t = 100)]
+    #[arg(short = 'n', long, value_parser = parse_max_targets, default_value = "100%")]
     pub max_targets: u32,
 
     /// Cap number of results to return
