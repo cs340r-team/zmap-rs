@@ -9,6 +9,7 @@
 use std::sync::{Arc, Mutex};
 
 use affinity::{get_core_num, set_thread_affinity};
+use config::Context;
 use lib::blacklist::Blacklist;
 use log::{debug, info};
 use monitor::Monitor;
@@ -18,8 +19,6 @@ use send::Sender;
 
 use crate::config::create_context;
 use crate::crypto::Cyclic;
-use crate::probe_modules::module_tcp_synscan::NaiveProbeGenerator;
-use crate::probe_modules::module_tcp_synscan::PrecomputedProbeGenerator;
 
 mod config;
 mod crypto;
@@ -30,6 +29,49 @@ mod probe_modules;
 mod recv;
 mod send;
 mod state;
+
+fn dump_summary(ctx: &Context) {
+    let zsend = ctx.sender_state.lock().unwrap();
+    let zsend_sent = zsend.sent;
+    let zsend_sendto_failures = zsend.sendto_failures;
+    let zsend_blacklisted = zsend.blacklisted;
+    let zsend_first_scanned = zsend.first_scanned;
+    drop(zsend);
+
+    let zrecv = ctx.receiver_state.lock().unwrap();
+    let zrecv_success_total = zrecv.success_total;
+    let zrecv_success_unique = zrecv.success_unique;
+    let zrecv_cooldown_total = zrecv.cooldown_total;
+    let zrecv_cooldown_unique = zrecv.cooldown_unique;
+    let zrecv_failure_total = zrecv.failure_total;
+    drop(zrecv);
+
+    let hitrate = ((zrecv_success_unique as f64) * 100.0) / (zsend_sent as f64);
+
+    println!("target-port {}", ctx.config.target_port);
+    println!("source-port-range-begin {}", ctx.config.source_port_first);
+    println!("source-port-range-end {}", ctx.config.source_port_last);
+    println!("source-addr-range-begin {}", ctx.config.source_ip_first);
+    println!("source-addr-range-end {}", ctx.config.source_ip_last);
+    println!("maximum-targets {}", ctx.config.max_targets);
+    println!("maximum-runtime {}", ctx.config.max_runtime);
+    println!("maximum-results {}", ctx.config.max_results);
+    println!("permutation-seed {}", ctx.config.seed);
+    println!("cooldown-period {:?}", ctx.config.cooldown_secs);
+    println!("send-interface {}", ctx.config.interface);
+    println!("rate (packets per second) {}", ctx.config.rate);
+    println!("bandwidth {}", ctx.config.bandwidth);
+    println!("sent {}", zsend_sent);
+    println!("blacklisted {}", zsend_blacklisted);
+    println!("first-scanned {}", zsend_first_scanned);
+    println!("hit-rate {:.6}%", hitrate);
+    println!("success-total {}", zrecv_success_total);
+    println!("success-unique {}", zrecv_success_unique);
+    println!("success-cooldown-total {}", zrecv_cooldown_total);
+    println!("success-cooldown-unique {}", zrecv_cooldown_unique);
+    println!("failure-total {}", zrecv_failure_total);
+    println!("sendto-failures {}", zsend_sendto_failures);
+}
 
 fn main() {
     env_logger::builder()
@@ -99,8 +141,6 @@ fn main() {
         .join()
         .expect("Unable to join monitor thread");
 
-    // TODO: print summary statistics
-    println!("recv_stats: {:?}", ctx.receiver_state.lock().unwrap());
-
+    dump_summary(&ctx);
     info!("zmap-rs completed");
 }
