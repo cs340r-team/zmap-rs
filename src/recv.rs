@@ -83,8 +83,14 @@ impl Receiver {
             return;
         }
 
-        let sliced_packet =
-            SlicedPacket::from_ethernet(packet.data).expect("Could not parse Ethernet packet");
+        let sliced_packet = match SlicedPacket::from_ethernet(packet.data) {
+            Ok(p) => p,
+            Err(_) => {
+                debug!("Could not parse Ethernet packet");
+                return;
+            }
+        };
+        
         let ip_header = match &sliced_packet.net {
             Some(NetSlice::Ipv4(slice)) => slice.header(),
             _ => {
