@@ -2,9 +2,47 @@ use etherparse::{
     EtherType, Ethernet2Header, IpFragOffset, IpNumber, Ipv4Dscp, Ipv4Header, TcpHeader,
 };
 use eui48::MacAddress;
-use libc::MAXTTL;
+use libc::{c_uchar, c_uint, c_ushort, ETH_ALEN, ETH_P_IP, IPPROTO_TCP, MAXTTL};
+
+pub const ETH_HDR_SIZE: usize = std::mem::size_of::<ethhdr>();
+pub const IP_HDR_SIZE: usize = std::mem::size_of::<iphdr>();
+pub const TCP_HDR_SIZE: usize = std::mem::size_of::<tcphdr>();
 
 pub const MAX_PACKET_SIZE: usize = 4096;
+
+#[repr(C)]
+pub struct ethhdr {
+    pub h_dest: [c_uchar; 6],
+    pub h_source: [c_uchar; 6],
+    pub h_proto: c_ushort,
+}
+
+#[repr(C)]
+pub struct iphdr {
+    pub version_ihl: c_uchar,
+    pub tos: c_uchar,
+    pub tot_len: c_ushort,
+    pub id: c_ushort,
+    pub frag_off: c_ushort,
+    pub ttl: c_uchar,
+    pub protocol: c_uchar,
+    pub checksum: c_ushort,
+    pub saddr: c_uint,
+    pub daddr: c_uint,
+}
+
+#[repr(C)]
+pub struct tcphdr {
+    pub source: c_ushort,
+    pub dest: c_ushort,
+    pub seq: c_uint,
+    pub ack_seq: c_uint,
+    pub data_off: c_uchar,
+    pub flags: c_uchar,
+    pub window: c_ushort,
+    pub checksum: c_ushort,
+    pub urg_ptr: c_ushort,
+}
 
 pub fn make_eth_header(source: &MacAddress, destination: &MacAddress) -> Ethernet2Header {
     let mut header: Ethernet2Header = Default::default();
@@ -127,7 +165,6 @@ mod tests {
         builder.write(&mut result, &[]).unwrap();
 
         let expected_checksum = u16::from_be_bytes([result[50], result[51]]);
-        println!("{:x?}", expected_checksum);
         let tcp_header_without_checksum = &result[34..50];
         let actual_checksum = tcp_checksum(
             tcp_header_without_checksum,
@@ -135,8 +172,6 @@ mod tests {
             u32::from_be_bytes(IP_SRC),
             u32::from_be_bytes(IP_DEST),
         );
-
-        println!("{:?}", result);
 
         assert_eq!(expected_checksum, actual_checksum);
     }

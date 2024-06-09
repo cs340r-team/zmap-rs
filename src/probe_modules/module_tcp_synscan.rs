@@ -5,11 +5,13 @@ use etherparse::{
     TransportSlice,
 };
 use eui48::MacAddress;
+use libc::{c_uchar, c_uint, c_ushort, ETH_ALEN, ETH_P_IP, IPPROTO_TCP, MAXTTL};
 use log::debug;
 
 use crate::config::Config;
 use crate::probe_modules::packet::{
-    ip_checksum, make_eth_header, make_ip_header, make_tcp_header, tcp_checksum, MAX_PACKET_SIZE,
+    ethhdr, ip_checksum, iphdr, make_eth_header, make_ip_header, make_tcp_header, tcp_checksum,
+    tcphdr, ETH_HDR_SIZE, IP_HDR_SIZE, MAX_PACKET_SIZE, TCP_HDR_SIZE,
 };
 use crate::probe_modules::probe_modules::ProbeGenerator;
 
@@ -138,7 +140,7 @@ impl ProbeGenerator for PrecomputedProbeGenerator {
 
         let mut ip_header = make_ip_header(IpNumber::TCP);
         ip_header.source = source_ip.octets();
-        ip_header.total_len = 40; // 14 Ethernet header + 20 IP header + 20 TCP header
+        ip_header.total_len = IP_HDR_SIZE as u16 + TCP_HDR_SIZE as u16;
         ip_header.write_raw(&mut self.buffer).unwrap();
 
         let tcp_header = make_tcp_header(target_port);
@@ -177,6 +179,127 @@ impl ProbeGenerator for PrecomputedProbeGenerator {
             (*destination_ip).into(),
         );
         self.buffer[50..52].copy_from_slice(&tcp_checksum.to_be_bytes());
+        &self.buffer
+    }
+}
+
+/// Unsafe probe generator similar to above, but with no bounds checking, similar to ZMap's
+/// original implementation.
+pub struct PrecomputedUnsafeProbeGenerator {
+    source_ip: Ipv4Addr,
+    source_port_first: u16,
+    source_port_last: u16,
+    target_port: u16,
+    buffer: Vec<u8>,
+}
+
+impl Default for PrecomputedUnsafeProbeGenerator {
+    fn default() -> Self {
+        let mut buffer = vec![0u8; MAX_PACKET_SIZE];
+        buffer.resize(ETH_HDR_SIZE + IP_HDR_SIZE + TCP_HDR_SIZE, 0);
+        
+        PrecomputedUnsafeProbeGenerator {
+            source_ip: Ipv4Addr::new(0, 0, 0, 0),
+            source_port_first: 0,
+            source_port_last: 0,
+            target_port: 0,
+            buffer,
+        }
+    }
+}
+
+impl ProbeGenerator for PrecomputedUnsafeProbeGenerator {
+    fn thread_initialize(
+        &mut self,
+        source_mac: &MacAddress,
+        gateway_mac: &MacAddress,
+        source_ip: &Ipv4Addr,
+        source_port_first: u16,
+        source_port_last: u16,
+        target_port: u16,
+    ) {
+        self.source_ip = *source_ip;
+        self.source_port_first = source_port_first;
+        self.source_port_last = source_port_last;
+        self.target_port = target_port;
+
+        // Set the Ethernet header
+        unsafe {
+            let eth_header = &mut *(self.buffer.as_mut_ptr() as *mut ethhdr);
+            std::ptr::copy_nonoverlapping(
+                source_mac.as_bytes().as_ptr(),
+                eth_header.h_source.as_mut_ptr(),
+                ETH_ALEN as usize,
+            );
+            std::ptr::copy_nonoverlapping(
+                gateway_mac.as_bytes().as_ptr(),
+                eth_header.h_dest.as_mut_ptr(),
+                ETH_ALEN as usize,
+            );
+            eth_header.h_proto = (ETH_P_IP as u16).to_be();
+        };
+
+        // Set the IP header
+        unsafe {
+            let ip_header = &mut *(self.buffer.as_mut_ptr().add(ETH_HDR_SIZE) as *mut iphdr);
+            ip_header.version_ihl = 0x45;
+            ip_header.tot_len = 40u16.to_be();
+            ip_header.id = 54321u16.to_be();
+            ip_header.ttl = MAXTTL;
+            ip_header.protocol = IPPROTO_TCP as u8;
+            ip_header.saddr = u32::from(*source_ip).to_be();
+            ip_header.frag_off = 0x4000u16.to_be(); // Don't fragment
+        };
+
+        // Set the TCP header
+        unsafe {
+            let tcp_header =
+                &mut *(self.buffer.as_mut_ptr().add(ETH_HDR_SIZE + IP_HDR_SIZE) as *mut tcphdr);
+            tcp_header.dest = target_port.to_be();
+            tcp_header.flags = 0x02; // SYN
+            tcp_header.window = u16::MAX.to_be();
+            tcp_header.data_off = 0x50;
+        };
+    }
+
+    // We just need to the IP header checksum, destination address, and TCP source port, sequence number, and checksum
+    fn make_packet(
+        &mut self,
+        destination_ip: &Ipv4Addr,
+        validation: &[u32],
+        probe_num: u32,
+    ) -> &[u8] {
+        unsafe {
+            let ip_header = &mut *(self.buffer.as_mut_ptr().add(ETH_HDR_SIZE) as *mut iphdr);
+            ip_header.daddr = u32::from(*destination_ip).to_be();
+            let ip_checksum = ip_checksum(&self.buffer[ETH_HDR_SIZE..ETH_HDR_SIZE + IP_HDR_SIZE]);
+            ip_header.checksum = ip_checksum.to_be();
+        };
+
+        let num_ports = (self.source_port_last - self.source_port_first + 1) as u32;
+        let src_port = self.source_port_first + ((validation[1] + probe_num) % num_ports) as u16;
+
+        unsafe {
+            let tcp_header =
+                &mut *(self.buffer.as_mut_ptr().add(ETH_HDR_SIZE + IP_HDR_SIZE) as *mut tcphdr);
+
+            // Calculate and set source port
+            tcp_header.source = src_port.to_be();
+
+            // Set the sequence number
+            tcp_header.seq = validation[0].to_be();
+
+            // Calculate and set IP header checksum
+            let tcp_checksum = tcp_checksum(
+                &self.buffer[ETH_HDR_SIZE + IP_HDR_SIZE..],
+                TCP_HDR_SIZE as u16,
+                self.source_ip.into(),
+                (*destination_ip).into(),
+            );
+
+            tcp_header.checksum = tcp_checksum.to_be();
+        };
+
         &self.buffer
     }
 }
